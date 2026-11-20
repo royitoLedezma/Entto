@@ -1,0 +1,95 @@
+rules_version = '2';
+
+// Reglas de seguridad de Entto.
+// - El administrador (por correo) crea entrenadores.
+// - Cada entrenador solo ve y edita lo suyo.
+// - El atleta entra por su enlace secreto: queda vinculado a ese enlace y solo
+//   puede leer su plan publicado y escribir sus registros. Si el entrenador crea
+//   un enlace nuevo, el anterior deja de funcionar.
+
+service cloud.firestore {
+  match /databases/{db}/documents {
+
+    function signedIn() { return request.auth != null; }
+
+    // Cambia este correo por el del administrador (en minúsculas).
+    function isAdmin() {
+      return signedIn() && request.auth.token.email != null
+        && request.auth.token.email.lower() in ['ADMIN_EMAIL'];
+    }
+
+    function isCoach(cid) {
+      return signedIn() && request.auth.uid == cid
+        && exists(/databases/$(db)/documents/users/$(cid));
+    }
+
+    function myLink() {
+      return get(/databases/$(db)/documents/links/$(request.auth.uid)).data;
+    }
+
+    function isAthlete(cid, aid) {
+      return signedIn()
+        && exists(/databases/$(db)/documents/links/$(request.auth.uid))
+        && myLink().coachId == cid
+        && myLink().athleteId == aid
+        && exists(/databases/$(db)/documents/access/$(myLink().token))
+        && get(/databases/$(db)/documents/access/$(myLink().token)).data.athleteId == aid;
+    }
+
+    // Entrenadores (y administrador)
+    match /users/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Enlaces secretos de atletas: se leen sabiendo el código, nunca se listan.
+    match /access/{token} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && request.resource.data.coachId == request.auth.uid
+        && exists(/databases/$(db)/documents/users/$(request.auth.uid));
+      allow update, delete: if signedIn() && resource.data.coachId == request.auth.uid;
+    }
+
+    // Vínculo de un celular (sesión anónima) con un enlace válido.
+    match /links/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && exists(/databases/$(db)/documents/access/$(request.resource.data.token))
+        && get(/databases/$(db)/documents/access/$(request.resource.data.token)).data.coachId == request.resource.data.coachId
+        && get(/databases/$(db)/documents/access/$(request.resource.data.token)).data.athleteId == request.resource.data.athleteId;
+      allow delete: if signedIn() && request.auth.uid == uid;
+    }
+
+    match /coaches/{cid} {
+      allow read, write: if isCoach(cid);
+
+      match /exercises/{eid} {
+        allow read, write: if isCoach(cid);
+      }
+
+      match /athletes/{aid} {
+        allow read, write: if isCoach(cid);
+        allow get: if isAthlete(cid, aid);
+
+        // Plan: el atleta solo ve lo publicado.
+        match /days/{day} {
+          allow read, write: if isCoach(cid);
+          allow get: if isAthlete(cid, aid) && resource.data.published == true;
+        }
+
+        // Lo que anota el atleta (el entrenador también puede llenarlo).
+        match /logs/{day} {
+          allow read, write: if isCoach(cid) || isAthlete(cid, aid);
+        }
+
+        // Tests: los carga el entrenador, el atleta los lee.
+        match /tests/{tid} {
+          allow read, write: if isCoach(cid);
+          allow read: if isAthlete(cid, aid);
+        }
+      }
+    }
+  }
+}
