@@ -357,6 +357,7 @@ function view() {
     <div class="wrap">
       ${C.tab === 'atletas' ? athletesView() : C.tab === 'plan' ? planView() : C.tab === 'ejercicios' ? exercisesView() : C.tab === 'revisar' ? reviewView() : adminView()}
     </div>
+    <p class="muted small center">Entto · versión ${globalThis.__ENTTO_VERSION || ''}</p>
     ${C.toast ? html`<div class="toast" role="status">${C.toast}</div>` : nothing}
   </div>`;
 }

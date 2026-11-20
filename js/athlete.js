@@ -190,7 +190,8 @@ function dayView(day) {
     ${log.finished ? html`<div class="banner">Sesión terminada. ${S.online ? 'Ya le llegó a tu entrenador.' : 'Se enviará apenas tengas internet.'} Puedes seguir corrigiendo.</div>`
       : html`<button class="btn-main" @click=${() => { log.finished = true; log.finishedAt = Date.now(); save(d); }}>Terminar sesión</button>`}
     <p class="muted small center">${S.saving ? 'Guardando…' : 'Todo guardado'}</p>
-    <p class="center"><a class="link small" href="#entrenador" @click=${() => setTimeout(() => location.reload(), 50)}>¿Eres entrenador? Entrar aquí</a></p>`;
+    <p class="center"><a class="link small" href="#entrenador" @click=${() => setTimeout(() => location.reload(), 50)}>¿Eres entrenador? Entrar aquí</a></p>
+    <p class="muted small center">Entto · versión ${globalThis.__ENTTO_VERSION || ''}</p>`;
 }
 
 function blockView(b) {

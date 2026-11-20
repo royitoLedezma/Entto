@@ -1,5 +1,7 @@
 // Entrada: decide si se abre la app del atleta (enlace con #a=código) o la del entrenador.
+export const VERSION = '12';
 const root = document.getElementById('app');
+globalThis.__ENTTO_VERSION = VERSION;
 
 function athleteToken() {
   const m = location.hash.match(/[#&]a=([A-Za-z0-9]+)/);
@@ -9,7 +11,11 @@ function athleteToken() {
 }
 
 async function main() {
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' }).then((r) => r.update()).catch(() => {});
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloaded && navigator.serviceWorker.controller) { reloaded = true; location.reload(); } });
+  }
   let cfg;
   try { cfg = await import('./firebase-config.js'); } catch (e) { cfg = null; }
   if (!cfg || String(cfg.firebaseConfig.apiKey).startsWith('PEGAR')) {

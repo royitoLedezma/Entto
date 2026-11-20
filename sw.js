@@ -1,7 +1,7 @@
 // Funcionamiento sin internet: guarda la app en el celular.
 // Archivos propios: primero la red (para recibir actualizaciones), si no hay, lo guardado.
 // Librerías externas (Firebase, Excel): lo guardado primero.
-const CACHE = 'entto-v11';
+const CACHE = 'entto-v12';
 const SHELL = [
   './', './index.html', './css/app.css', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png',
   './js/app.js', './js/db.js', './js/firebase-config.js', './js/parser.js', './js/model.js', './js/athlete.js', './js/coach.js', './js/stats.js', './js/charts.js',
@@ -28,6 +28,6 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); return res; })));
     return;
   }
-  e.respondWith(fetch(req).then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); return res; })
+  e.respondWith(fetch(req, { cache: 'no-cache' }).then((res) => { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(req, copy)); return res; })
     .catch(() => caches.match(req, { ignoreSearch: true }).then((hit) => hit || caches.match('./index.html'))));
 });
