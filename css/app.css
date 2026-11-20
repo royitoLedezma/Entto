@@ -183,3 +183,4 @@ code{background:#EFEFEB;padding:1px 4px;border-radius:4px}
 .chk{display:inline-flex;align-items:center;gap:6px;font-size:14px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff}
 .guide summary{cursor:pointer;font-weight:600;color:var(--acc);font-size:14px;padding:4px 0}
 .guide .tbl td{font-size:13px}
+.sep{border-top:1px solid var(--line);margin:6px 0}

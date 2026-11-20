@@ -164,7 +164,7 @@ t('3x1000 a 19 km/h → 3:09.5', () => {
   assert.deepEqual(x.run.splits.map((s) => s.label), ['2 a 37.9', '4 a 1:15.8', '8 a 2:31.6']);
 });
 
-t('6x30 → sin tiempo (a tope)', () => {
+t('6x30 → sin tiempo (a full)', () => {
   const x = L[3];
   assert.equal(x.type, 'run'); assert.equal(x.run.meters, 30); assert.equal(x.run.targetSec, null); assert.equal(x.run.splits.length, 0);
 });

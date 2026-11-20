@@ -221,7 +221,7 @@ export function planText(item) {
   if (item.type === 'run' && item.run) {
     const r = item.run;
     const parts = [];
-    if (r.paceText) parts.push(r.paceText); else parts.push('a tope');
+    if (r.paceText) parts.push(r.paceText); else parts.push('a full');
     let t = parts.join('');
     if (r.targetSec && /km|\//.test(r.paceText)) t += ' → ' + clock(r.targetSec) + ' c/u';
     if (r.restRep != null) t += ' · r ' + short(r.restRep);

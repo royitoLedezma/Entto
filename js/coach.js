@@ -46,7 +46,7 @@ const GUIDE = [
   ['Isométrico', 'Pallof → 3x3 @6”  ·  Cuádriceps 45” → 3x1 @20 kg'],
   ['Saltos', 'Rebotes → 3x20'],
   ['Lanzamiento con marca', 'Bala → 6 tiros @4 kg marca'],
-  ['Velocidad a tope', '6x30 a full'],
+  ['Velocidad a full', '6x30 a full'],
   ['Pista con series', "4x2x200 ritmo 35'' r30'' R1'"],
   ['Carrera larga', "3x1000 a 4min/km r2'  ·  3x1000 a 19km/h"],
   ['Parciales propios', '600 a 1:30 [2 a 28.5 · 4 a 59]'],
@@ -453,8 +453,15 @@ function planView() {
       <p class="muted small">Semana del lunes ${niceDate(dates[0])}. Todos tus atletas, con los días uno al lado del otro: Ejercicio, S, R, KG, Progresiones y Realizado. “Copiar” lo deja listo para pegar en tu hoja con ese formato.</p>
       <div class="seg2">${[['todo', 'Semana completa'], ['gym', 'Solo gym'], ['pista', 'Solo pista']].map(([k, l]) => html`<button class=${C.microMode === k ? 'on' : ''} @click=${() => { C.microMode = k; draw(); }}>${l}</button>`)}</div>
       <div class="row wrap-row"><label class="chk"><input type="checkbox" .checked=${C.printDone} @change=${(e) => { C.printDone = e.target.checked; }}> Incluir lo realizado</label>
-        <button class="btn main" ?disabled=${C.busy} @click=${() => microAction('copy')}>Copiar para Excel</button>
+        <button class="btn main" ?disabled=${C.busy} @click=${() => microAction('copy')}>Copiar plan completo</button>
         <button class="btn ghost" ?disabled=${C.busy} @click=${() => microAction('print')}>Imprimir o PDF</button></div>
+      <div class="sep"></div>
+      <h2>Copiar solo lo realizado</h2>
+      <p class="muted small">Misma forma que el plan completo, para pegarlo encima del que ya tienes en tu hoja sin borrar nada.</p>
+      <div class="row wrap-row"><button class="btn main" ?disabled=${C.busy} @click=${() => microAction('done')}>Realizado de toda la semana</button>
+        <span class="muted small">En Excel: clic en la misma celda de arriba a la izquierda → Pegado especial → marcar <b>Saltar blancos</b> → Aceptar.</span></div>
+      <div class="row wrap-row"><span class="small">Realizado de un día:</span>${dates.map((d, i) => html`<button class="btn-sm" ?disabled=${C.busy} @click=${() => microAction('day', i)}>${DAY_SHORT[i]} ${parseYmd(d).getDate()}</button>`)}</div>
+      <p class="muted small">Un día = una sola columna: clic en la primera celda de la columna Realizado de ese día (la fila del título “Microciclo”) y pegar normal. Sirve también en Google Sheets.</p>
     </div>
     <div class="card">
       <div class="row wrap-row between"><h2>Semana de cada atleta</h2>
@@ -762,44 +769,59 @@ async function buildMicro() {
   return { dates, sel, blocks, monday };
 }
 
-function microTable(m, days, styled) {
+function microTable(m, days, styled, opt = {}) {
+  const od = !!opt.onlyDone;
+  const T = (v) => (od ? '' : v);
   const b = styled ? 'border:1px solid #555;' : '';
   const th = (t, extra = '') => `<th style="${b}background:#E8E8E4;font-weight:bold;text-align:center;${extra}">${t}</th>`;
-  const head1 = days.map((i) => `<th colspan="6" style="${b}background:#D8D8D2;font-weight:bold;text-align:center">${DAY_LONG[i]} ${niceDate(m.dates[i])}</th>`).join('');
-  const head2 = days.map(() => th('Ejercicio', 'text-align:left') + th('S') + th('R') + th('KG') + th('Progresiones') + th('Realizado')).join('');
+  const head1 = days.map((i) => `<th colspan="6" style="${b}background:#D8D8D2;font-weight:bold;text-align:center">${T(DAY_LONG[i] + ' ' + niceDate(m.dates[i]))}</th>`).join('');
+  const head2 = days.map(() => th(T('Ejercicio'), 'text-align:left') + th(T('S')) + th(T('R')) + th(T('KG')) + th(T('Progresiones')) + th(T('Realizado'))).join('');
   let body = '';
   m.blocks.forEach(({ a, cols }) => {
     const pick = days.map((i) => cols[m.sel.indexOf(i)] || []);
     const n = Math.max(1, ...pick.map((c) => c.length));
     if (pick.every((c) => !c.length)) return;
     for (let r = 0; r < n; r++) {
-      body += '<tr>' + (r === 0 ? `<td rowspan="${n}" style="${b}text-align:center;vertical-align:middle;font-weight:bold;background:#F4F4F1">${esc(a.name)}<br><span style="font-weight:normal;font-size:8pt">${esc(a.group || '')}</span></td>` : '');
-      pick.forEach((c) => { const x = c[r] || {}; body += `<td style="${b}text-align:left">${esc(x.ej)}</td><td style="${b}text-align:center">${esc(x.s)}</td><td style="${b}text-align:center">${esc(x.r)}</td><td style="${b}text-align:center">${esc(x.kg)}</td><td style="${b}text-align:left">${esc(x.pr)}</td><td style="${b}text-align:left">${esc(x.re)}</td>`; });
+      body += '<tr>' + (r === 0 ? `<td rowspan="${n}" style="${b}text-align:center;vertical-align:middle;font-weight:bold;background:#F4F4F1">${od ? '' : esc(a.name) + '<br><span style="font-weight:normal;font-size:8pt">' + esc(a.group || '') + '</span>'}</td>` : '');
+      pick.forEach((c) => { const x = c[r] || {}; body += `<td style="${b}text-align:left">${esc(T(x.ej))}</td><td style="${b}text-align:center">${esc(T(x.s))}</td><td style="${b}text-align:center">${esc(T(x.r))}</td><td style="${b}text-align:center">${esc(T(x.kg))}</td><td style="${b}text-align:left">${esc(T(x.pr))}</td><td style="${b}text-align:left">${esc(x.re)}</td>`; });
       body += '</tr>';
     }
   });
   const span = 1 + days.length * 6;
   return `<table style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:9pt"><thead>
-    <tr><th colspan="${span}" style="font-size:12pt;text-align:left;padding:4px 0">Microciclo · Semana ${m.monday}</th></tr>
-    <tr>${th('Nombre', 'vertical-align:middle')}${head1}</tr><tr>${th('')}${head2}</tr></thead><tbody>${body}</tbody></table>`;
+    <tr><th colspan="${span}" style="font-size:12pt;text-align:left;padding:4px 0">${T('Microciclo · Semana ' + m.monday)}</th></tr>
+    <tr>${th(T('Nombre'), 'vertical-align:middle')}${head1}</tr><tr>${th('')}${head2}</tr></thead><tbody>${body}</tbody></table>`;
 }
 
-function microTsv(m) {
-  const rows = [['Microciclo · Semana ' + m.monday], ['Nombre'].concat(...m.sel.map((i) => [DAY_LONG[i] + ' ' + niceDate(m.dates[i]), '', '', '', '', ''])), [''].concat(...m.sel.map(() => ['Ejercicio', 'S', 'R', 'KG', 'Progresiones', 'Realizado']))];
+function microTsv(m, opt = {}) {
+  if (opt.onlyDay != null) {
+    const k = m.sel.indexOf(opt.onlyDay);
+    const rows = [[''], [''], ['']];
+    m.blocks.forEach(({ cols, n }) => { for (let r = 0; r < n; r++) rows.push([(cols[k][r] || {}).re || '']); });
+    return rows.map((r) => r.join('')).join('\n');
+  }
+  const od = !!opt.onlyDone;
+  const T = (v) => (od ? '' : v);
+  const rows = [[T('Microciclo · Semana ' + m.monday)], [T('Nombre')].concat(...m.sel.map((i) => [T(DAY_LONG[i] + ' ' + niceDate(m.dates[i])), '', '', '', '', ''])), [''].concat(...m.sel.map(() => od ? ['', '', '', '', '', ''] : ['Ejercicio', 'S', 'R', 'KG', 'Progresiones', 'Realizado']))];
   m.blocks.forEach(({ a, cols, n }) => {
-    for (let r = 0; r < n; r++) rows.push([r === 0 ? a.name : ''].concat(...cols.map((c) => { const x = c[r] || {}; return [x.ej || '', x.s || '', x.r || '', x.kg || '', x.pr || '', x.re || '']; })));
+    for (let r = 0; r < n; r++) rows.push([r === 0 ? T(a.name) : ''].concat(...cols.map((c) => { const x = c[r] || {}; return [T(x.ej || ''), T(x.s || ''), T(x.r || ''), T(x.kg || ''), T(x.pr || ''), x.re || '']; })));
   });
   return rows.map((r) => r.map((v) => String(v).replace(/[\t\n]/g, ' ')).join('\t')).join('\n');
 }
 
-async function microAction(kind) {
+async function microAction(kind, dayIdx) {
   C.busy = true; draw();
   try {
+    const keepDone = C.printDone;
+    if (kind === 'done' || kind === 'day') C.printDone = true;
     const m = await buildMicro();
+    C.printDone = keepDone;
+    if (kind === 'day' && !m.sel.includes(dayIdx)) { toast(DAY_LONG[dayIdx] + ' no está en el microciclo (' + (C.microMode === 'todo' ? 'sin entrenamiento' : 'no es día de ' + C.microMode) + ').'); C.busy = false; draw(); return; }
     if (!m.sel.length || !m.blocks.length) { toast(C.microMode === 'todo' ? 'No hay entrenamientos esta semana.' : 'No hay días de ' + C.microMode + ' esta semana.'); C.busy = false; draw(); return; }
-    if (kind === 'copy') {
-      const htmlStr = '<html><body>' + microTable(m, m.sel, true) + '</body></html>';
-      const tsv = microTsv(m);
+    if (kind === 'copy' || kind === 'done' || kind === 'day') {
+      const opt = kind === 'done' ? { onlyDone: true } : kind === 'day' ? { onlyDay: dayIdx } : {};
+      const htmlStr = '<html><body>' + (kind === 'day' ? microDayTable(m, dayIdx) : microTable(m, m.sel, true, opt)) + '</body></html>';
+      const tsv = microTsv(m, opt);
       let ok = false;
       try {
         if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
@@ -808,7 +830,8 @@ async function microAction(kind) {
         }
       } catch (e) { ok = false; }
       if (!ok) { try { await navigator.clipboard.writeText(tsv); ok = true; } catch (e) { ok = false; } }
-      toast(ok ? 'Copiado (' + m.sel.length + (m.sel.length === 1 ? ' día' : ' días') + '). Pégalo en tu Excel en la celda de arriba a la izquierda.' : 'Tu navegador no dejó copiar. Usa “Imprimir o PDF”.');
+      const msg = kind === 'done' ? 'Realizado copiado. En Excel: Pegado especial → Saltar blancos, en la misma celda de arriba a la izquierda.' : kind === 'day' ? 'Realizado del ' + DAY_LONG[dayIdx].toLowerCase() + ' copiado. Pégalo en la primera celda de su columna Realizado.' : 'Copiado (' + m.sel.length + (m.sel.length === 1 ? ' día' : ' días') + '). Pégalo en tu Excel en la celda de arriba a la izquierda.';
+      toast(ok ? msg : 'Tu navegador no dejó copiar. Usa “Imprimir o PDF”.');
     } else {
       const chunks = []; for (let i = 0; i < m.sel.length; i += 3) chunks.push(m.sel.slice(i, i + 3));
       const doc = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Microciclo ${m.monday}</title><style>@page{size:A4 landscape;margin:8mm}body{margin:0}table{width:100%;margin-bottom:6mm}tr{page-break-inside:avoid}.pb{page-break-after:always}.bar{padding:8px;font-family:Arial;background:#FFF1E8;border-bottom:1px solid #C2410C}@media print{.bar{display:none}}</style></head><body><div class="bar">Usa <b>Imprimir</b> y elige <b>Guardar como PDF</b> para tener el archivo. <button onclick="window.print()">Imprimir</button></div>${chunks.map((ch) => microTable(m, ch, true)).join('<div class="pb"></div>')}<script>setTimeout(function(){window.print()},400)<\/script></body></html>`;
@@ -818,4 +841,13 @@ async function microAction(kind) {
     }
   } catch (e) { console.error(e); toast('No se pudo armar el microciclo: ' + e.message); }
   C.busy = false; draw();
+}
+
+
+// Una sola columna con lo realizado de un día, alineada con las filas del microciclo (3 filas de título + filas por atleta).
+function microDayTable(m, dayIdx) {
+  const k = m.sel.indexOf(dayIdx);
+  let rows = '<tr><td></td></tr><tr><td></td></tr><tr><td></td></tr>';
+  m.blocks.forEach(({ cols, n }) => { for (let r = 0; r < n; r++) rows += `<tr><td>${esc((cols[k][r] || {}).re || '')}</td></tr>`; });
+  return `<table style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:9pt">${rows}</table>`;
 }

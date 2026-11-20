@@ -43,6 +43,6 @@ La app queda en `https://royitoledezma.github.io/entto/`.
 | Pista | `4x2x200 ritmo 35'' r30'' R1'` |
 | Endurance | `3x1000 a 4min/km r2'` · `3x1000 a 19km/h` |
 | Parciales propios | `600 a 1:30 [2 a 28.5 · 4 a 59]` |
-| Velocidad corta | `6x30` (a tope, sin tiempo) |
+| Velocidad corta | `6x30 a full` (sin tiempo) |
 | Pedir resultado | agregar `marca`: `Bala → 6 tiros @4 kg marca` |
 | Objetivo del día | `💡 Prioridad: …` |
