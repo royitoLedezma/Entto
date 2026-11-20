@@ -17,6 +17,7 @@ async function main() {
     return;
   }
   const token = athleteToken();
+  globalThis.__ENTTO_MODE = token ? 'athlete' : 'coach';
   root.innerHTML = '';
   try {
     if (token) { const m = await import('./athlete.js'); await m.startAthlete(root, token); }
@@ -26,4 +27,5 @@ async function main() {
     root.innerHTML = '<div class="app"><div class="hd"><h1>Entto</h1></div><div class="wrap"><div class="card"><p>No se pudo cargar la app. ' + (navigator.onLine ? 'Recarga la página.' : 'Revisa tu conexión: la primera vez necesita internet.') + '</p></div></div></div>';
   }
 }
+window.addEventListener('hashchange', () => { if (/[#&](a=|entrenador)/.test(location.hash)) location.reload(); });
 main();

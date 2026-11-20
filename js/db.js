@@ -7,7 +7,9 @@ const appMod = await import(`${base}/firebase-app.js`);
 const authMod = await import(`${base}/firebase-auth.js`);
 const fsMod = await import(`${base}/firebase-firestore.js`);
 
-export const app = appMod.initializeApp(firebaseConfig);
+// El atleta usa una conexión aparte, así su sesión anónima no reemplaza la del entrenador en el mismo navegador.
+const MODE = globalThis.__ENTTO_MODE === 'athlete' ? 'athlete' : 'coach';
+export const app = MODE === 'athlete' ? appMod.initializeApp(firebaseConfig, 'entto-atleta') : appMod.initializeApp(firebaseConfig);
 export const auth = authMod.getAuth(app);
 
 let firestore;

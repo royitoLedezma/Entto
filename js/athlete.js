@@ -111,7 +111,7 @@ function setWell(patch) { const l = curLog(); l.wellness = Object.assign({ sleep
 
 // ---------- vistas ----------
 function view() {
-  if (S.error) return html`<div class="app athlete"><div class="hd"><h1>Entto</h1></div><div class="scroll"><div class="card"><p>${S.error}</p></div></div></div>`;
+  if (S.error) return html`<div class="app athlete"><div class="hd"><h1>Entto</h1></div><div class="scroll"><div class="card"><p>${S.error}</p></div><p class="center"><a class="link small" href="#entrenador" @click=${() => setTimeout(() => location.reload(), 50)}>¿Eres entrenador? Entrar aquí</a></p></div></div>`;
   if (S.loading && !S.dates.length) return html`<div class="app athlete"><div class="hd"><h1>Entto</h1></div><div class="scroll"><p class="muted center">Cargando tu entrenamiento…</p></div></div>`;
   const week = S.view === 'semana';
   const day = S.days[S.dayIdx];
@@ -184,7 +184,8 @@ function dayView(day) {
     </div>
     ${log.finished ? html`<div class="banner">Sesión terminada. ${S.online ? 'Ya le llegó a tu entrenador.' : 'Se enviará apenas tengas internet.'} Puedes seguir corrigiendo.</div>`
       : html`<button class="btn-main" @click=${() => { log.finished = true; log.finishedAt = Date.now(); save(d); }}>Terminar sesión</button>`}
-    <p class="muted small center">${S.saving ? 'Guardando…' : 'Todo guardado'}</p>`;
+    <p class="muted small center">${S.saving ? 'Guardando…' : 'Todo guardado'}</p>
+    <p class="center"><a class="link small" href="#entrenador" @click=${() => setTimeout(() => location.reload(), 50)}>¿Eres entrenador? Entrar aquí</a></p>`;
 }
 
 function blockView(b) {
