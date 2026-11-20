@@ -1,7 +1,7 @@
 // Funcionamiento sin internet: guarda la app en el celular.
 // Archivos propios: primero la red (para recibir actualizaciones), si no hay, lo guardado.
 // Librerías externas (Firebase, Excel): lo guardado primero.
-const CACHE = 'entto-v6';
+const CACHE = 'entto-v7';
 const SHELL = [
   './', './index.html', './css/app.css', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png',
   './js/app.js', './js/db.js', './js/firebase-config.js', './js/parser.js', './js/model.js', './js/athlete.js', './js/coach.js', './js/stats.js', './js/charts.js',

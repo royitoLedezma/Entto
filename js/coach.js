@@ -13,6 +13,47 @@ import { barChart, stackChart, lineChart, legend, BLUE, GHOST, SEQ } from './cha
 const TAGS = { gym: 'Gym', run: 'Carrera', iso: 'Isom.', throw: 'Lanz.', jump: 'Salto', note: 'Nota' };
 const ST = { hecho: '✓ Hecho', mod: '✎ Modificado', no: '✕ No lo hizo' };
 
+
+const EXAMPLE = [
+  'Nombre del atleta',
+  'Calentamiento',
+  'Movilidad → 1x10\'',
+  'Rebotes → 3x20',
+  'Principal',
+  'Arranque → 3x3 @35-37,5-40 kg',
+  'Sentadilla → 4x6 @60 kg',
+  'A Press banca → 3x8 @40 kg',
+  'A Remo en anillas → 3x8',
+  'Pallof → 3x3 @6”',
+  'Subida cajón → 3x4e @20 kg',
+  'Bala → 6 tiros @4 kg marca',
+  'Triple desde parado → 6 saltos marca',
+  '6x30 a full',
+  '4x2x200 ritmo 35\'\' r30\'\' R1\'',
+  '3x1000 a 4min/km r2\'',
+  '600 a 1:30 [2 a 28.5 · 4 a 59]',
+  'Vuelta a la calma',
+  'Trote suave → 1x10\'',
+  '💡 Prioridad: objetivo de la sesión'
+].join('\n');
+const GUIDE = [
+  ['Atleta (y día, si quieres)', 'Nombre del atleta · LUNES'],
+  ['Levantamiento olímpico con progresión', 'Arranque → 3x3 @35-37,5-40 kg'],
+  ['Sentadilla / gym', 'Sentadilla → 4x6 @60 kg'],
+  ['Peso corporal', 'Remo en anillas → 3x8'],
+  ['Circuito (misma letra)', 'A Press banca → 3x8 @40 kg'],
+  ['Por lado', 'Subida cajón → 3x4e @20 kg'],
+  ['Isométrico', 'Pallof → 3x3 @6”  ·  Cuádriceps 45” → 3x1 @20 kg'],
+  ['Saltos', 'Rebotes → 3x20'],
+  ['Lanzamiento con marca', 'Bala → 6 tiros @4 kg marca'],
+  ['Velocidad a tope', '6x30 a full'],
+  ['Pista con series', "4x2x200 ritmo 35'' r30'' R1'"],
+  ['Carrera larga', "3x1000 a 4min/km r2'  ·  3x1000 a 19km/h"],
+  ['Parciales propios', '600 a 1:30 [2 a 28.5 · 4 a 59]'],
+  ['Por tiempo', "Trote suave → 1x10'"],
+  ['Objetivo del día', '💡 Prioridad: …']
+];
+
 const C = {
   root: null, user: null, profile: null, isAdmin: false, ready: false, loginErr: '', loginMode: 'login', busy: false,
   tab: 'atletas', athletes: [], exercises: {}, toast: '',
@@ -23,7 +64,7 @@ const C = {
   ra: null, rm: mondayOf(new Date()), rDays: {}, rLogs: {}, rTests: {}, newTest: { name: '', unit: 'kg' }, newRes: {},
   rtab: 'revisar', prog: null, pv: 'semana', pmode: 'rel', poff: 0, psel: {}, ploading: false,
   // excel
-  printDays: [0, 1, 2, 3, 4], printDone: false,
+  microMode: 'todo', printDone: false,
   exFrom: ymd(addDays(mondayOf(new Date()), -49)), exTo: ymd(addDays(mondayOf(new Date()), 6)),
   // admin
   users: [], nu: { name: '', email: '', pass: '' }
@@ -396,7 +437,11 @@ function planView() {
     <div class="card">
       <h2>Pegar texto</h2>
       <p class="muted small">Pega tu mensaje como lo escribes en WhatsApp. Puede traer varios atletas (nombre en una línea) y días (LUNES, MARTES…). Si no trae días, va al día que elijas abajo.</p>
-      <textarea class="big" placeholder=${'Jhon\nCalentamiento\nInclinación → 3x8 @7 kg\nPrincipal\nArranque → 3x6 @18 kg\nA HBDL → 4x12 @50 kg\nA Press de hombro → 4x10 @14 kg\n4x2x200 ritmo 35\'\' r30\'\' R1\'\n💡 Prioridad: técnica'} .value=${live(C.text)} @input=${(e) => { C.text = e.target.value; }}></textarea>
+      <textarea class="big" placeholder=${EXAMPLE} .value=${live(C.text)} @input=${(e) => { C.text = e.target.value; }}></textarea>
+      <details class="guide"><summary>Cómo escribir cada tipo de ejercicio</summary>
+        <table class="tbl"><tbody>${GUIDE.map(([a, b]) => html`<tr><td>${a}</td><td><code>${b}</code></td></tr>`)}</tbody></table>
+        <button class="btn-sm" @click=${() => { C.text = EXAMPLE; draw(); }}>Usar el ejemplo como base</button>
+      </details>
       <div class="row wrap-row">
         <label class="small">Día si no lo indica: <select class="inp" @change=${(e) => { C.targetDate = e.target.value; }}>${dates.map((d, i) => html`<option value=${d} ?selected=${C.targetDate === d}>${DAY_LONG[i]} ${niceDate(d)}</option>`)}</select></label>
         <button class="btn main" @click=${convert}>Convertir</button>
@@ -404,11 +449,12 @@ function planView() {
     </div>
     ${C.parsed ? previewView(dates) : nothing}
     <div class="card">
-      <h2>Imprimir microciclo (PDF)</h2>
-      <p class="muted small">Todos tus atletas en una hoja, con los días elegidos uno al lado del otro: Ejercicio, S, R, KG, Progresiones y Realizado. Se abre lista para imprimir o guardar como PDF. Hasta 3 días por página.</p>
-      <div class="row wrap-row">${dates.map((d, i) => html`<label class="chk"><input type="checkbox" .checked=${C.printDays.includes(i)} @change=${(e) => { C.printDays = e.target.checked ? C.printDays.concat([i]).sort() : C.printDays.filter((x) => x !== i); draw(); }}> ${DAY_SHORT[i]} ${parseYmd(d).getDate()}</label>`)}</div>
+      <h2>Microciclo para tu Excel</h2>
+      <p class="muted small">Semana del lunes ${niceDate(dates[0])}. Todos tus atletas, con los días uno al lado del otro: Ejercicio, S, R, KG, Progresiones y Realizado. “Copiar” lo deja listo para pegar en tu hoja con ese formato.</p>
+      <div class="seg2">${[['todo', 'Semana completa'], ['gym', 'Solo gym'], ['pista', 'Solo pista']].map(([k, l]) => html`<button class=${C.microMode === k ? 'on' : ''} @click=${() => { C.microMode = k; draw(); }}>${l}</button>`)}</div>
       <div class="row wrap-row"><label class="chk"><input type="checkbox" .checked=${C.printDone} @change=${(e) => { C.printDone = e.target.checked; }}> Incluir lo realizado</label>
-        <button class="btn main" ?disabled=${C.busy || !C.printDays.length} @click=${printMicro}>Abrir para imprimir</button></div>
+        <button class="btn main" ?disabled=${C.busy} @click=${() => microAction('copy')}>Copiar para Excel</button>
+        <button class="btn ghost" ?disabled=${C.busy} @click=${() => microAction('print')}>Imprimir o PDF</button></div>
     </div>
     <div class="card">
       <div class="row wrap-row between"><h2>Semana de cada atleta</h2>
@@ -685,67 +731,91 @@ function printRow(it, g, log) {
   return { ej, s: sv, r: rv, kg, pr, re };
 }
 
-async function printMicro() {
+// Tipo de cada día según lo planificado para todos los atletas: gym o pista.
+function dayKind(data, date) {
+  let gym = 0, pista = 0;
+  data.forEach(({ days }) => { const d = days[date]; if (!d) return; d.blocks.forEach((b) => b.items.forEach((it) => { if (it.type === 'gym' || it.type === 'iso') gym++; else if (it.type !== 'note') pista++; })); });
+  if (!gym && !pista) return null;
+  return gym >= pista ? 'gym' : 'pista';
+}
+
+async function buildMicro() {
+  const dates = weekDates(C.pm);
+  const list = C.athletes.filter((a) => !a.paused);
+  const data = await Promise.all(list.map(async (a) => {
+    const [days, logs] = await Promise.all([rangeDocs(P.days(uid(), a.id), dates[0], dates[6]), C.printDone ? rangeDocs(P.logs(uid(), a.id), dates[0], dates[6]) : Promise.resolve({})]);
+    Object.values(days).forEach(assignIds);
+    return { a, days, logs };
+  }));
+  const sel = [0, 1, 2, 3, 4, 5, 6].filter((i) => { const k = dayKind(data, dates[i]); return k && (C.microMode === 'todo' || C.microMode === k); });
+  const blocks = data.map(({ a, days, logs }) => {
+    const cols = sel.map((i) => {
+      const day = days[dates[i]]; if (!day) return [];
+      const rows = [];
+      day.blocks.forEach((b) => groupItems(b.items).forEach((g) => (g.kind === 'circuit' ? g.items : [g.item]).forEach((it) => rows.push(printRow(it, g, logs[dates[i]])))));
+      return rows;
+    });
+    return { a, cols, n: Math.max(1, ...cols.map((c) => c.length)), empty: cols.every((c) => !c.length) };
+  }).filter((b) => !b.empty);
+  const d0 = parseYmd(dates[0]);
+  const monday = String(d0.getDate()).padStart(2, '0') + '/' + String(d0.getMonth() + 1).padStart(2, '0') + '/' + d0.getFullYear();
+  return { dates, sel, blocks, monday };
+}
+
+function microTable(m, days, styled) {
+  const b = styled ? 'border:1px solid #555;' : '';
+  const th = (t, extra = '') => `<th style="${b}background:#E8E8E4;font-weight:bold;text-align:center;${extra}">${t}</th>`;
+  const head1 = days.map((i) => `<th colspan="6" style="${b}background:#D8D8D2;font-weight:bold;text-align:center">${DAY_LONG[i]} ${niceDate(m.dates[i])}</th>`).join('');
+  const head2 = days.map(() => th('Ejercicio', 'text-align:left') + th('S') + th('R') + th('KG') + th('Progresiones') + th('Realizado')).join('');
+  let body = '';
+  m.blocks.forEach(({ a, cols }) => {
+    const pick = days.map((i) => cols[m.sel.indexOf(i)] || []);
+    const n = Math.max(1, ...pick.map((c) => c.length));
+    if (pick.every((c) => !c.length)) return;
+    for (let r = 0; r < n; r++) {
+      body += '<tr>' + (r === 0 ? `<td rowspan="${n}" style="${b}text-align:center;vertical-align:middle;font-weight:bold;background:#F4F4F1">${esc(a.name)}<br><span style="font-weight:normal;font-size:8pt">${esc(a.group || '')}</span></td>` : '');
+      pick.forEach((c) => { const x = c[r] || {}; body += `<td style="${b}text-align:left">${esc(x.ej)}</td><td style="${b}text-align:center">${esc(x.s)}</td><td style="${b}text-align:center">${esc(x.r)}</td><td style="${b}text-align:center">${esc(x.kg)}</td><td style="${b}text-align:left">${esc(x.pr)}</td><td style="${b}text-align:left">${esc(x.re)}</td>`; });
+      body += '</tr>';
+    }
+  });
+  const span = 1 + days.length * 6;
+  return `<table style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:9pt"><thead>
+    <tr><th colspan="${span}" style="font-size:12pt;text-align:left;padding:4px 0">Microciclo · Semana ${m.monday}</th></tr>
+    <tr>${th('Nombre', 'vertical-align:middle')}${head1}</tr><tr>${th('')}${head2}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function microTsv(m) {
+  const rows = [['Microciclo · Semana ' + m.monday], ['Nombre'].concat(...m.sel.map((i) => [DAY_LONG[i] + ' ' + niceDate(m.dates[i]), '', '', '', '', ''])), [''].concat(...m.sel.map(() => ['Ejercicio', 'S', 'R', 'KG', 'Progresiones', 'Realizado']))];
+  m.blocks.forEach(({ a, cols, n }) => {
+    for (let r = 0; r < n; r++) rows.push([r === 0 ? a.name : ''].concat(...cols.map((c) => { const x = c[r] || {}; return [x.ej || '', x.s || '', x.r || '', x.kg || '', x.pr || '', x.re || '']; })));
+  });
+  return rows.map((r) => r.map((v) => String(v).replace(/[\t\n]/g, ' ')).join('\t')).join('\n');
+}
+
+async function microAction(kind) {
   C.busy = true; draw();
   try {
-    const dates = weekDates(C.pm);
-    const sel = C.printDays.slice().sort();
-    const list = C.athletes.filter((a) => !a.paused);
-    const data = await Promise.all(list.map(async (a) => {
-      const [days, logs] = await Promise.all([rangeDocs(P.days(uid(), a.id), dates[0], dates[6]), C.printDone ? rangeDocs(P.logs(uid(), a.id), dates[0], dates[6]) : Promise.resolve({})]);
-      Object.values(days).forEach(assignIds);
-      return { a, days, logs };
-    }));
-    const withData = sel.filter((i) => data.some(({ days }) => days[dates[i]]));
-    if (!withData.length) { toast('No hay entrenamientos en los días elegidos.'); C.busy = false; draw(); return; }
-    const chunks = []; for (let i = 0; i < withData.length; i += 3) chunks.push(withData.slice(i, i + 3));
-    const pages = chunks.map((ch) => {
-      const head1 = ch.map((i) => `<th colspan="6" class="day">${DAY_LONG[i]} ${niceDate(dates[i])}</th>`).join('');
-      const head2 = ch.map(() => '<th class="ej">Ejercicio</th><th>S</th><th>R</th><th>KG</th><th class="pr">Progresiones</th><th class="re">Realizado</th>').join('');
-      const body = data.map(({ a, days, logs }) => {
-        const cols = ch.map((i) => {
-          const day = days[dates[i]];
-          if (!day) return [];
-          const rows = [];
-          day.blocks.forEach((b) => groupItems(b.items).forEach((g) => (g.kind === 'circuit' ? g.items : [g.item]).forEach((it) => rows.push(printRow(it, g, logs[dates[i]])))));
-          return rows;
-        });
-        const n = Math.max(1, ...cols.map((c) => c.length));
-        if (cols.every((c) => !c.length)) return '';
-        let out = '';
-        for (let r = 0; r < n; r++) {
-          out += '<tr>' + (r === 0 ? `<td class="name" rowspan="${n}"><b>${esc(a.name)}</b><br><span>${esc(a.group || '')}</span></td>` : '');
-          cols.forEach((c) => { const x = c[r]; out += x ? `<td class="ej">${esc(x.ej)}</td><td>${esc(x.s)}</td><td>${esc(x.r)}</td><td>${esc(x.kg)}</td><td class="pr">${esc(x.pr)}</td><td class="re">${esc(x.re)}</td>` : '<td class="ej"></td><td></td><td></td><td></td><td class="pr"></td><td class="re"></td>'; });
-          out += '</tr>';
+    const m = await buildMicro();
+    if (!m.sel.length || !m.blocks.length) { toast(C.microMode === 'todo' ? 'No hay entrenamientos esta semana.' : 'No hay días de ' + C.microMode + ' esta semana.'); C.busy = false; draw(); return; }
+    if (kind === 'copy') {
+      const htmlStr = '<html><body>' + microTable(m, m.sel, true) + '</body></html>';
+      const tsv = microTsv(m);
+      let ok = false;
+      try {
+        if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+          await navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([htmlStr], { type: 'text/html' }), 'text/plain': new Blob([tsv], { type: 'text/plain' }) })]);
+          ok = true;
         }
-        return out;
-      }).join('');
-      return `<table><thead><tr><th class="title" colspan="${1 + ch.length * 6}">Microciclo de entrenamiento</th></tr>
-        <tr><th class="meta" colspan="${1 + ch.length * 6}">Semana del ${niceDate(dates[0])} al ${niceDate(dates[6])} &nbsp;·&nbsp; Entrenador: ${esc(C.profile.name || C.user.email)}</th></tr>
-        <tr><th rowspan="2" class="name">Nombre</th>${head1}</tr><tr>${head2}</tr></thead><tbody>${body || `<tr><td colspan="${1 + ch.length * 6}">No hay entrenamientos en estos días.</td></tr>`}</tbody></table>`;
-    }).join('<div class="pb"></div>');
-    const doc = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Microciclo ${dates[0]}</title><style>
-      @page{size:A4 landscape;margin:8mm}
-      body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;color:#000;margin:0}
-      table{border-collapse:collapse;width:100%;margin-bottom:6mm}
-      th,td{border:0.6pt solid #555;padding:2px 4px;vertical-align:top}
-      th{background:#E8E8E4;font-weight:bold;text-align:center}
-      th.title{font-size:13pt;background:#fff;border:0;padding:4px}
-      th.meta{background:#fff;border:0;font-weight:normal;padding-bottom:6px}
-      th.day{background:#D8D8D2}
-      td{text-align:center}
-      td.ej,th.ej{text-align:left;min-width:110px}
-      td.pr,td.re{text-align:left;min-width:60px}
-      td.name{text-align:center;vertical-align:middle;min-width:70px;background:#F4F4F1}
-      td.name span{font-size:8pt;color:#444}
-      tr{page-break-inside:avoid}
-      .pb{page-break-after:always}
-      .bar{padding:8px;font-family:Arial;background:#FFF1E8;border-bottom:1px solid #C2410C}
-      @media print{.bar{display:none}}
-    </style></head><body><div class="bar">Usa <b>Imprimir</b> y elige <b>Guardar como PDF</b> para tener el archivo. <button onclick="window.print()">Imprimir</button></div>${pages}<script>setTimeout(function(){window.print()},400)<\/script></body></html>`;
-    const w = window.open('', '_blank');
-    if (!w) { toast('Permite las ventanas emergentes para abrir el microciclo.'); C.busy = false; draw(); return; }
-    w.document.open(); w.document.write(doc); w.document.close();
+      } catch (e) { ok = false; }
+      if (!ok) { try { await navigator.clipboard.writeText(tsv); ok = true; } catch (e) { ok = false; } }
+      toast(ok ? 'Copiado (' + m.sel.length + (m.sel.length === 1 ? ' día' : ' días') + '). Pégalo en tu Excel en la celda de arriba a la izquierda.' : 'Tu navegador no dejó copiar. Usa “Imprimir o PDF”.');
+    } else {
+      const chunks = []; for (let i = 0; i < m.sel.length; i += 3) chunks.push(m.sel.slice(i, i + 3));
+      const doc = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Microciclo ${m.monday}</title><style>@page{size:A4 landscape;margin:8mm}body{margin:0}table{width:100%;margin-bottom:6mm}tr{page-break-inside:avoid}.pb{page-break-after:always}.bar{padding:8px;font-family:Arial;background:#FFF1E8;border-bottom:1px solid #C2410C}@media print{.bar{display:none}}</style></head><body><div class="bar">Usa <b>Imprimir</b> y elige <b>Guardar como PDF</b> para tener el archivo. <button onclick="window.print()">Imprimir</button></div>${chunks.map((ch) => microTable(m, ch, true)).join('<div class="pb"></div>')}<script>setTimeout(function(){window.print()},400)<\/script></body></html>`;
+      const w = window.open('', '_blank');
+      if (!w) toast('Permite las ventanas emergentes para abrir el microciclo.');
+      else { w.document.open(); w.document.write(doc); w.document.close(); }
+    }
   } catch (e) { console.error(e); toast('No se pudo armar el microciclo: ' + e.message); }
   C.busy = false; draw();
 }
