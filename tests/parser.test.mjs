@@ -123,7 +123,7 @@ Calentamiento
 Trote suave → 1x10'
 Principal
 4x2x200 ritmo 35'' r30'' R1'
-3x1000 a 4min/km r2'
+3x1000 a 4min/km R2'
 3x1000 a 19km/h
 6x30
 600 a 1:30 [2 a 28.5 · 4 a 59]
@@ -155,7 +155,7 @@ t('3x1000 a 4min/km → 4:00 por rep, parciales 2/4/8', () => {
   const x = L[1];
   assert.equal(x.run.targetSec, 240);
   assert.deepEqual(x.run.splits.map((s) => s.label), ['2 a 48.0', '4 a 1:36.0', '8 a 3:12.0']);
-  assert.equal(x.run.restRep, 120);
+  assert.equal(x.run.restSet, 120); assert.equal(x.run.series, 3); assert.equal(x.run.reps, 1);
 });
 
 t('3x1000 a 19 km/h → 3:09.5', () => {
@@ -255,6 +255,12 @@ Vallas → 3x4x5 r1' R3'`, { athletes: ['Ana'] });
   const e = parsePlan('X\nSubida cajón → 3x4ex20\nBala → 3x6x4 marca', { athletes: ['X'] }).athletes[0].days[0].blocks[0].items;
   assert.equal(e[0].perSide, true); assert.equal(e[0].kg, 20); assert.equal(e[0].plan, '3 × 4e · 20 kg');
   assert.equal(e[1].kg, 4); assert.equal(e[1].marca, true);
+});
+
+t('endurance: solo series usa R; r se toma como R', () => {
+  const q = parsePlan("X\n3x1000 a 4min/km r2'\n2x3x1000 a 4min/km r1' R3'", { athletes: ['X'] }).athletes[0].days[0].blocks[0].items;
+  assert.deepEqual([q[0].run.restRep, q[0].run.restSet], [null, 120]); assert.match(q[0].plan, /R 2'/);
+  assert.deepEqual([q[1].run.series, q[1].run.reps, q[1].run.restRep, q[1].run.restSet], [2, 3, 60, 180]);
 });
 
 console.log(`\n${ok} pruebas pasaron`);

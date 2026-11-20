@@ -115,7 +115,7 @@ function parseRun(text) {
   } else if ((m = s.match(/^(\d+)\s*[x×]\s*(\d+)\s*[x×]\s*(\d{2,5})\s*m?\b(.*)$/i))) {
     series = Number(m[1]); reps = Number(m[2]); meters = Number(m[3]); s = m[4];
   } else if ((m = s.match(/^(\d+)\s*[x×]\s*(\d{2,5})\s*m?\b(.*)$/i)) && Number(m[2]) >= 20) {
-    reps = Number(m[1]); meters = Number(m[2]); s = m[3];
+    series = Number(m[1]); meters = Number(m[2]); s = m[3]; // "3x1000" = 3 series
   } else if ((m = s.match(/^(\d{2,5})\s*m?\s+(?=a\s|ritmo\s|en\s)(.*)$/i)) && Number(m[1]) >= 20) {
     meters = Number(m[1]); s = m[2];
   } else {
@@ -149,6 +149,8 @@ function parseRun(text) {
     if (t != null) { run.targetSec = t; run.paceText = 'ritmo ' + (t < 60 ? short(t) : clock(t)); }
   }
 
+  // solo series (sin repeticiones): toda pausa es entre series (R)
+  if (run.reps === 1 && run.restRep != null && run.restSet == null) { run.restSet = run.restRep; run.restRep = null; }
   if (!run.customSplits && run.targetSec) run.splits = evenSplits(meters, run.targetSec);
   return run;
 }

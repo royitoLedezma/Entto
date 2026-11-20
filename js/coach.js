@@ -16,28 +16,19 @@ const ST = { hecho: '✓ Hecho', mod: '✎ Modificado', no: '✕ No lo hizo' };
 
 const EXAMPLE = [
   'Nombre del atleta',
-  'Calentamiento',
-  'Movilidad → 1x10\'',
-  'Principal',
   'Sentadilla → 4x6x60',
-  'Arranque → 3x3x15-18-20',
-  'A Press banca → 3x8x40',
-  'A Remo en anillas → 3x8',
   'Pallof → 3x3x6”',
   '4x2x200 ritmo 35\'\' r30\'\' R1\'',
-  '2x3x1000 a 4min/km r1\' R3\'',
-  'Bala → 3x6x4 r30\'\' R2\'',
-  'Vallas → 3x4x5 r1\' R3\'',
-  'Vuelta a la calma',
-  'Trote suave → 1x10\'',
-  '💡 Prioridad: objetivo de la sesión'
+  'Bala → 3x6x4',
+  '💡 Prioridad: técnica'
 ].join('\n');
+const PLACEHOLDER = 'Pega o escribe aquí el entrenamiento.\nEmpieza con el nombre del atleta; abajo está la guía de cada ejercicio.';
 const GUIDE = [
   ['Atleta', 'Nombre del atleta (una línea)', 'Jhon'],
   ['Gym', 'Ejercicio → series x repeticiones x peso (o pesos por serie separados por -)', 'Sentadilla → 4x6x60 · Arranque → 3x3x15-18-20'],
   ['Isométricos', 'Ejercicio → series x repeticiones x tiempo”', 'Pallof → 3x3x6”'],
   ['Carreras', "series x repeticiones x distancia ritmo XX'' r micropausa R macropausa", "4x2x200 ritmo 35'' r30'' R1'"],
-  ['Endurance', 'series o repeticiones x distancia a velocidad promedio r micropausa R macropausa', "2x3x1000 a 4min/km r1' R3' · 3x1000 a 19km/h r2'"],
+  ['Endurance', 'series x distancia a velocidad R macropausa · o series x repeticiones x distancia r micropausa R macropausa', "3x1000 a 4min/km R2' · 2x3x1000 a 19km/h r1' R3'"],
   ['Lanzamientos', 'Ejercicio → series x repeticiones x peso (o pesos) r micropausa R macropausa', "Bala → 3x6x4 r30'' R2' · Martillo → 3x6x5-4-3"],
   ['Saltos', 'Ejercicio → series x repeticiones x saltos r micropausa R macropausa', "Vallas → 3x4x5 r1' R3'"],
   ['Extras', 'circuito: misma letra al inicio · por lado: e · pedir resultado: marca · velocidad: a full · parciales: [2 a … · 4 a …] · por tiempo: 1x10\' · día: LUNES · objetivo: 💡 Prioridad:', 'A Press banca → 3x8x40 · Subida cajón → 3x4ex20 · Bala → 3x6x4 marca · 6x30 a full']
@@ -426,11 +417,10 @@ function planView() {
     <div class="card">
       <h2>Pegar texto</h2>
       <p class="muted small">Pega tu mensaje como lo escribes en WhatsApp. Puede traer varios atletas (nombre en una línea) y días (LUNES, MARTES…). Si no trae días, va al día que elijas abajo.</p>
-      <textarea class="big" placeholder=${EXAMPLE} .value=${live(C.text)} @input=${(e) => { C.text = e.target.value; }}></textarea>
+      <textarea class="big" placeholder=${PLACEHOLDER} .value=${live(C.text)} @input=${(e) => { C.text = e.target.value; }}></textarea>
       <details class="guide"><summary>Cómo escribir cada tipo de ejercicio</summary>
         <table class="tbl"><thead><tr><th>Qué</th><th>Cómo se escribe</th><th>Ejemplo</th></tr></thead><tbody>${GUIDE.map(([a, b, c]) => html`<tr><td><b>${a}</b></td><td>${b}</td><td><code>${c}</code></td></tr>`)}</tbody></table>
-        <p class="muted small">La micropausa (r) y la macropausa (R) sirven en carreras, endurance, lanzamientos y saltos. El peso también se puede escribir con @ (Sentadilla → 4x6 @60 kg).</p>
-        <button class="btn-sm" @click=${() => { C.text = EXAMPLE; draw(); }}>Usar el ejemplo como base</button>
+        <button class="btn-sm" @click=${() => { C.text = EXAMPLE; draw(); }}>Pegar un ejemplo corto</button>
       </details>
       <div class="row wrap-row">
         <label class="small">Día si no lo indica: <select class="inp" @change=${(e) => { C.targetDate = e.target.value; }}>${dates.map((d, i) => html`<option value=${d} ?selected=${C.targetDate === d}>${DAY_LONG[i]} ${niceDate(d)}</option>`)}</select></label>
