@@ -15,7 +15,7 @@ service cloud.firestore {
     // Cambia este correo por el del administrador (en minúsculas).
     function isAdmin() {
       return signedIn() && request.auth.token.email != null
-        && request.auth.token.email.lower() in ['ADMIN_EMAIL'];
+        && request.auth.token.email.lower() in ['royito.estudios@gmail.com'];
     }
 
     function isCoach(cid) {
