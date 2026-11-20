@@ -171,10 +171,17 @@ function parseArrow(left, right) {
   let r = right.replace(/[“”″]/g, '"').replace(/''/g, '"');
   let m;
   if ((m = r.match(/(\d+)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(?:'|min\b)/i))) { item.sets = Number(m[1]); item.durationSec = Number(m[2].replace(',', '.')) * 60; }
-  else if ((m = r.match(/(\d+)\s*[x×]\s*(\d+)/i))) { item.sets = Number(m[1]); item.reps = Number(m[2]); }
+  else if ((m = r.match(/(\d+)\s*[x×]\s*(\d+)(e\b)?/i))) { item.sets = Number(m[1]); item.reps = Number(m[2]); if (m[3]) item.perSide = true; }
   else if ((m = r.match(/^\s*(\d+(?:[.,]\d+)?)\s*(?:'|min\b)/i))) { item.sets = 1; item.durationSec = Number(m[1].replace(',', '.')) * 60; }
   if ((m = r.match(/(\d+)\s*(tiros|lanzamientos|saltos|rebotes|contactos|reps?)\b/i))) item.qty = Number(m[1]);
 
+  // progresión por serie: @35-37,5-40 kg
+  const pm = r.match(/@\s*(\d+(?:[.,]\d+)?(?:\s*-\s*\d+(?:[.,]\d+)?)+)\s*(kg)?/i);
+  if (pm) {
+    item.kgList = pm[1].split('-').map((x) => Number(x.trim().replace(',', '.')));
+    item.kg = Math.round(item.kgList.reduce((a, b) => a + b, 0) / item.kgList.length * 100) / 100;
+    return item;
+  }
   if ((m = r.match(/@\s*(\d+(?:[.,]\d+)?)\s*(kg|"|s\b|seg)?/i))) {
     const v = Number(m[1].replace(',', '.'));
     const isTime = m[2] && /^("|s|seg)$/i.test(m[2]);
@@ -223,10 +230,11 @@ export function planText(item) {
   }
   const parts = [];
   if (item.durationSec != null) parts.push((item.sets > 1 ? item.sets + ' × ' : '') + Math.round(item.durationSec / 60) + ' min');
-  else if (item.sets && item.reps) parts.push(item.sets + ' × ' + item.reps);
+  else if (item.sets && item.reps) parts.push(item.sets + ' × ' + item.reps + (item.perSide ? 'e' : ''));
   else if (item.qty) parts.push(item.qty + (item.type === 'throw' ? ' tiros' : item.type === 'jump' ? ' saltos' : ''));
   if (item.holdSec != null && item.type === 'iso') parts.push(item.holdSec + '"');
-  if (item.kg != null) parts.push(String(item.kg).replace('.', ',') + ' kg');
+  if (item.kgList) parts.push(item.kgList.map((v) => String(v).replace('.', ',')).join('-') + ' kg');
+  else if (item.kg != null) parts.push(String(item.kg).replace('.', ',') + ' kg');
   return parts.join(' · ');
 }
 

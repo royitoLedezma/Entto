@@ -23,6 +23,7 @@ const C = {
   ra: null, rm: mondayOf(new Date()), rDays: {}, rLogs: {}, rTests: {}, newTest: { name: '', unit: 'kg' }, newRes: {},
   rtab: 'revisar', prog: null, pv: 'semana', pmode: 'rel', poff: 0, psel: {}, ploading: false,
   // excel
+  printDays: [0, 1, 2, 3, 4], printDone: false,
   exFrom: ymd(addDays(mondayOf(new Date()), -49)), exTo: ymd(addDays(mondayOf(new Date()), 6)),
   // admin
   users: [], nu: { name: '', email: '', pass: '' }
@@ -403,6 +404,13 @@ function planView() {
     </div>
     ${C.parsed ? previewView(dates) : nothing}
     <div class="card">
+      <h2>Imprimir microciclo (PDF)</h2>
+      <p class="muted small">Todos tus atletas en una hoja, con los días elegidos uno al lado del otro: Ejercicio, S, R, KG, Progresiones y Realizado. Se abre lista para imprimir o guardar como PDF. Hasta 3 días por página.</p>
+      <div class="row wrap-row">${dates.map((d, i) => html`<label class="chk"><input type="checkbox" .checked=${C.printDays.includes(i)} @change=${(e) => { C.printDays = e.target.checked ? C.printDays.concat([i]).sort() : C.printDays.filter((x) => x !== i); draw(); }}> ${DAY_SHORT[i]} ${parseYmd(d).getDate()}</label>`)}</div>
+      <div class="row wrap-row"><label class="chk"><input type="checkbox" .checked=${C.printDone} @change=${(e) => { C.printDone = e.target.checked; }}> Incluir lo realizado</label>
+        <button class="btn main" ?disabled=${C.busy || !C.printDays.length} @click=${printMicro}>Abrir para imprimir</button></div>
+    </div>
+    <div class="card">
       <div class="row wrap-row between"><h2>Semana de cada atleta</h2>
         <select class="inp" aria-label="Atleta" @change=${async (e) => { C.gridAid = e.target.value; await loadGrid(); draw(); }}>${C.athletes.map((a) => html`<option value=${a.id} ?selected=${a.id === C.gridAid}>${a.name}${a.paused ? ' (pausa)' : ''}</option>`)}</select></div>
       ${ga ? html`<div class="row wrap-row"><button class="btn ghost" @click=${copyPrevWeek}>Copiar semana anterior</button><button class="btn main" @click=${publishWeek}>Publicar toda la semana</button></div>
@@ -528,11 +536,11 @@ function adminView() {
       <input class="inp grow" type="email" placeholder="Correo" aria-label="Correo" .value=${live(C.nu.email)} @input=${(e) => { C.nu.email = e.target.value; }}>
       <input class="inp" type="text" placeholder="Contraseña inicial" aria-label="Contraseña inicial" .value=${live(C.nu.pass)} @input=${(e) => { C.nu.pass = e.target.value; }}>
       <button class="btn main" ?disabled=${C.busy} @click=${createCoach}>Crear</button></div>
-    <p class="muted small">Pásale el correo y la contraseña. Puede cambiarla con “Olvidé mi contraseña”.</p>
+    <p class="muted small">Pásale el correo y la contraseña. Puede cambiarla con “Olvidé mi contraseña”. Los nombres de abajo se pueden editar (el tuyo aparece en el microciclo).</p>
   </div>
   <div class="card"><h2>Entrenadores</h2>
     <table class="tbl"><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th></tr></thead><tbody>
-      ${C.users.map((u) => html`<tr><td>${u.name}</td><td>${u.email}</td><td>${u.role === 'admin' ? 'Administrador' : 'Entrenador'}</td></tr>`)}
+      ${C.users.map((u) => html`<tr><td><input class="inp" aria-label=${'Nombre de ' + u.email} .value=${live(u.name || '')} @change=${async (e) => { const name = e.target.value.trim(); if (!name) return; await F.updateDoc(P.user(u.id), { name }); if (u.id === uid()) C.profile.name = name; await loadUsers(); toast('Nombre guardado.'); }}></td><td>${u.email}</td><td>${u.role === 'admin' ? 'Administrador' : 'Entrenador'}</td></tr>`)}
     </tbody></table></div>`;
 }
 
@@ -651,4 +659,93 @@ function progressView() {
       </div>`)}</div>` : html`<p class="muted small">Sin tests cargados. Se cargan en Revisar → Tests.</p>`}
       ${marks.length ? html`<span class="tag">MEJORES MARCAS ANOTADAS</span><ul>${marks.map((m) => html`<li class="it"><span class="it-name grow">${m.name}</span><span>${f1(m.value)}</span><span class="muted small">${niceDate(m.date)}</span>${m.delta ? html`<span class="rv-ok">+${f1(m.delta)}</span>` : nothing}</li>`)}</ul>` : nothing}
     </div>`;
+}
+
+
+// ---------- microciclo para imprimir ----------
+const esc = (v) => String(v == null ? '' : v).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const kgTxt = (v) => (v == null ? '' : String(v).replace('.', ','));
+
+function printRow(it, g, log) {
+  if (it.type === 'note') return { ej: it.text, s: '', r: '', kg: '', pr: '', re: '' };
+  let ej = (it.circuit ? it.circuit + ' ' : '') + it.name + (it.holdSec != null && it.type === 'iso' ? ' ' + it.holdSec + '"' : '');
+  let sv = it.sets || '', rv = it.reps != null ? it.reps + (it.perSide ? 'e' : '') : (it.qty || ''), kg = it.kgList ? '' : kgTxt(it.kg), pr = it.kgList ? it.kgList.map(kgTxt).join('-') : '';
+  if (it.durationSec != null) { rv = Math.round(it.durationSec / 60) + "'"; }
+  if (it.type === 'run' && it.run) { ej = it.name; sv = it.run.series > 1 ? it.run.series : ''; rv = it.run.reps; kg = ''; pr = it.plan; }
+  if (it.marca) pr = (pr ? pr + ' · ' : '') + 'marca';
+  let re = '';
+  if (log && log.items) {
+    const e = g.kind === 'circuit' ? log.items[g.id] : log.items[it.id];
+    const sub = g.kind === 'circuit' && e && e.ex ? e.ex[it.id] : e;
+    if (e && e.status === 'hecho') re = '✓' + (sub && sub.mark ? ' ' + sub.mark : '');
+    else if (e && e.status === 'no') re = '✕';
+    else if (e && e.status === 'mod') re = modSummary(it, sub) + (sub && sub.mark ? ' · marca ' + sub.mark : '');
+    else if (sub && sub.mark) re = 'marca ' + sub.mark;
+  }
+  return { ej, s: sv, r: rv, kg, pr, re };
+}
+
+async function printMicro() {
+  C.busy = true; draw();
+  try {
+    const dates = weekDates(C.pm);
+    const sel = C.printDays.slice().sort();
+    const list = C.athletes.filter((a) => !a.paused);
+    const data = await Promise.all(list.map(async (a) => {
+      const [days, logs] = await Promise.all([rangeDocs(P.days(uid(), a.id), dates[0], dates[6]), C.printDone ? rangeDocs(P.logs(uid(), a.id), dates[0], dates[6]) : Promise.resolve({})]);
+      Object.values(days).forEach(assignIds);
+      return { a, days, logs };
+    }));
+    const withData = sel.filter((i) => data.some(({ days }) => days[dates[i]]));
+    if (!withData.length) { toast('No hay entrenamientos en los días elegidos.'); C.busy = false; draw(); return; }
+    const chunks = []; for (let i = 0; i < withData.length; i += 3) chunks.push(withData.slice(i, i + 3));
+    const pages = chunks.map((ch) => {
+      const head1 = ch.map((i) => `<th colspan="6" class="day">${DAY_LONG[i]} ${niceDate(dates[i])}</th>`).join('');
+      const head2 = ch.map(() => '<th class="ej">Ejercicio</th><th>S</th><th>R</th><th>KG</th><th class="pr">Progresiones</th><th class="re">Realizado</th>').join('');
+      const body = data.map(({ a, days, logs }) => {
+        const cols = ch.map((i) => {
+          const day = days[dates[i]];
+          if (!day) return [];
+          const rows = [];
+          day.blocks.forEach((b) => groupItems(b.items).forEach((g) => (g.kind === 'circuit' ? g.items : [g.item]).forEach((it) => rows.push(printRow(it, g, logs[dates[i]])))));
+          return rows;
+        });
+        const n = Math.max(1, ...cols.map((c) => c.length));
+        if (cols.every((c) => !c.length)) return '';
+        let out = '';
+        for (let r = 0; r < n; r++) {
+          out += '<tr>' + (r === 0 ? `<td class="name" rowspan="${n}"><b>${esc(a.name)}</b><br><span>${esc(a.group || '')}</span></td>` : '');
+          cols.forEach((c) => { const x = c[r]; out += x ? `<td class="ej">${esc(x.ej)}</td><td>${esc(x.s)}</td><td>${esc(x.r)}</td><td>${esc(x.kg)}</td><td class="pr">${esc(x.pr)}</td><td class="re">${esc(x.re)}</td>` : '<td class="ej"></td><td></td><td></td><td></td><td class="pr"></td><td class="re"></td>'; });
+          out += '</tr>';
+        }
+        return out;
+      }).join('');
+      return `<table><thead><tr><th class="title" colspan="${1 + ch.length * 6}">Microciclo de entrenamiento</th></tr>
+        <tr><th class="meta" colspan="${1 + ch.length * 6}">Semana del ${niceDate(dates[0])} al ${niceDate(dates[6])} &nbsp;·&nbsp; Entrenador: ${esc(C.profile.name || C.user.email)}</th></tr>
+        <tr><th rowspan="2" class="name">Nombre</th>${head1}</tr><tr>${head2}</tr></thead><tbody>${body || `<tr><td colspan="${1 + ch.length * 6}">No hay entrenamientos en estos días.</td></tr>`}</tbody></table>`;
+    }).join('<div class="pb"></div>');
+    const doc = `<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Microciclo ${dates[0]}</title><style>
+      @page{size:A4 landscape;margin:8mm}
+      body{font-family:Arial,Helvetica,sans-serif;font-size:9pt;color:#000;margin:0}
+      table{border-collapse:collapse;width:100%;margin-bottom:6mm}
+      th,td{border:0.6pt solid #555;padding:2px 4px;vertical-align:top}
+      th{background:#E8E8E4;font-weight:bold;text-align:center}
+      th.title{font-size:13pt;background:#fff;border:0;padding:4px}
+      th.meta{background:#fff;border:0;font-weight:normal;padding-bottom:6px}
+      th.day{background:#D8D8D2}
+      td{text-align:center}
+      td.ej,th.ej{text-align:left;min-width:110px}
+      td.pr,td.re{text-align:left;min-width:60px}
+      td.name{text-align:center;vertical-align:middle;min-width:70px;background:#F4F4F1}
+      td.name span{font-size:8pt;color:#444}
+      tr{page-break-inside:avoid}
+      .pb{page-break-after:always}
+      .bar{padding:8px;font-family:Arial;background:#FFF1E8;border-bottom:1px solid #C2410C}
+      @media print{.bar{display:none}}
+    </style></head><body><div class="bar">Usa <b>Imprimir</b> y elige <b>Guardar como PDF</b> para tener el archivo. <button onclick="window.print()">Imprimir</button></div>${pages}<script>setTimeout(function(){window.print()},400)<\/script></body></html>`;
+    const w = window.open('', '_blank');
+    if (!w) { toast('Permite las ventanas emergentes para abrir el microciclo.'); C.busy = false; draw(); return; }
+    w.document.open(); w.document.write(doc); w.document.close();
+  } catch (e) { console.error(e); toast('No se pudo armar el microciclo: ' + e.message); }
+  C.busy = false; draw();
 }

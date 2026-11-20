@@ -58,7 +58,10 @@ export function totalReps(it) {
 // Series planificadas de un ejercicio de gym (para precargar Modificar).
 export function plannedSets(it) {
   const n = it.sets || 1;
-  return Array.from({ length: n }, () => ({ kg: it.kg != null ? String(it.kg).replace('.', ',') : '', reps: it.reps != null ? String(it.reps) : '' }));
+  return Array.from({ length: n }, (_, i) => {
+    const kg = it.kgList ? it.kgList[Math.min(i, it.kgList.length - 1)] : it.kg;
+    return { kg: kg != null ? String(kg).replace('.', ',') : '', reps: it.reps != null ? String(it.reps) : '' };
+  });
 }
 
 const num = (v) => (v == null || v === '' ? null : Number(String(v).replace(',', '.')));

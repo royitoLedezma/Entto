@@ -224,4 +224,12 @@ t('calentamiento sin números = tarea para marcar', () => {
   assert.equal(q.warnings.filter((w) => !w.kind).length, 0);
 });
 
+t('progresión por serie y reps por lado', () => {
+  const q = parsePlan('Luis\nArranque → 3x3 @35-37,5-40 kg\nSubida cajón → 2x3e @52,5 kg', { athletes: ['Luis'] });
+  const [a, b] = q.athletes[0].days[0].blocks[0].items;
+  assert.deepEqual(a.kgList, [35, 37.5, 40]); assert.equal(a.plan, '3 × 3 · 35-37,5-40 kg');
+  assert.equal(a.metrics.tonnage, 0.3375);
+  assert.equal(b.perSide, true); assert.equal(b.plan, '2 × 3e · 52,5 kg');
+});
+
 console.log(`\n${ok} pruebas pasaron`);
