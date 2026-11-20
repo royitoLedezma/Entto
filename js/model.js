@@ -1,5 +1,5 @@
 // Lógica compartida entre la app del entrenador y la del atleta.
-import { clock } from './parser.js';
+import { clock, planCount } from './parser.js';
 
 function hash(s) {
   let h = 5381;
@@ -70,8 +70,8 @@ const num = (v) => (v == null || v === '' ? null : Number(String(v).replace(',',
 export function modSummary(it, e) {
   if (!e) return '';
   if (it.type === 'run') { const t = (e.times || []).filter(Boolean); return t.length ? t.join(' · ') : 'sin tiempos'; }
-  if (it.type === 'throw') return (e.qty || it.qty || '') + ' tiros' + (e.impl ? ' · ' + e.impl : '');
-  if (it.type === 'jump') return (e.qty || it.qty || (it.sets && it.reps ? it.sets * it.reps : '')) + ' saltos';
+  if (it.type === 'throw') return (e.qty || planCount(it)) + ' tiros' + (e.impl ? ' · ' + e.impl : '');
+  if (it.type === 'jump') return (e.qty || planCount(it)) + ' saltos';
   if (e.sets && e.sets.length) {
     const reps = e.sets.map((s) => s.reps);
     const same = reps.every((r) => r === reps[0]);
@@ -171,7 +171,7 @@ export function detailRows(athlete, date, day, log) {
         }
         return;
       }
-      const qPlan = it.qty || (it.sets && it.reps ? it.sets * it.reps : it.sets);
+      const qPlan = planCount(it);
       const q = st === 'mod' && e && e.qty ? num(e.qty) : (st === 'hecho' ? qPlan : null);
       rows.push(Object.assign({}, baseRow, { Serie: 1, 'Kg plan': it.kg, 'Reps plan': null, 'Kg hecho': st === 'mod' && e && e.impl ? num(e.impl) : (st === 'hecho' ? it.kg : null), 'Reps hecho': null, Tiempo: '', Cantidad: q, Marca: e && e.mark ? e.mark : '', Cambio: q != null && qPlan && q !== qPlan ? ((q > qPlan ? '+' : '') + (q - qPlan)) : '', 'Sueño (1-5)': w.sleep || null, 'Horas sueño': w.hours || null, 'Se siente (1-5)': w.feel || null, Comentario: log && log.comment ? log.comment : '' }));
     });

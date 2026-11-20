@@ -155,6 +155,17 @@ function parseRun(text) {
 
 // ---------- ejercicio con flecha ----------
 
+function parseRests(r, item) {
+  const rr = r.match(/(?:^|\s)r\s*(\d+(?:[.,]\d+)?\s*(?:"|'|s\b|min)?)/);
+  if (rr) { item.restRep = parseTime(rr[1]); r = r.replace(rr[0], ' '); }
+  const rs = r.match(/(?:^|\s)R\s*(\d+(?:[.,]\d+)?\s*(?:"|'|s\b|min)?)/);
+  if (rs) { item.restSet = parseTime(rs[1]); r = r.replace(rs[0], ' '); }
+  return r;
+}
+
+const listOf = (txt) => txt.split('-').map((x) => Number(x.trim().replace(',', '.')));
+const mean = (a) => Math.round(a.reduce((x, y) => x + y, 0) / a.length * 100) / 100;
+
 function parseArrow(left, right) {
   const item = { name: '', circuit: null, sets: null, reps: null, kg: null, holdSec: null, qty: null };
   let name = left.trim();
@@ -169,26 +180,62 @@ function parseArrow(left, right) {
   item.name = name;
 
   let r = right.replace(/[“”″]/g, '"').replace(/''/g, '"');
+  r = parseRests(r, item);
   let m;
   if ((m = r.match(/(\d+)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(?:'|min\b)/i))) { item.sets = Number(m[1]); item.durationSec = Number(m[2].replace(',', '.')) * 60; }
-  else if ((m = r.match(/(\d+)\s*[x×]\s*(\d+)(e\b)?/i))) { item.sets = Number(m[1]); item.reps = Number(m[2]); if (m[3]) item.perSide = true; }
-  else if ((m = r.match(/^\s*(\d+(?:[.,]\d+)?)\s*(?:'|min\b)/i))) { item.sets = 1; item.durationSec = Number(m[1].replace(',', '.')) * 60; }
-  if ((m = r.match(/(\d+)\s*(tiros|lanzamientos|saltos|rebotes|contactos|reps?)\b/i))) item.qty = Number(m[1]);
-
-  // progresión por serie: @35-37,5-40 kg
-  const pm = r.match(/@\s*(\d+(?:[.,]\d+)?(?:\s*-\s*\d+(?:[.,]\d+)?)+)\s*(kg)?/i);
-  if (pm) {
-    item.kgList = pm[1].split('-').map((x) => Number(x.trim().replace(',', '.')));
-    item.kg = Math.round(item.kgList.reduce((a, b) => a + b, 0) / item.kgList.length * 100) / 100;
-    return item;
+  else if ((m = r.match(/(\d+)\s*[x×]\s*(\d+)(e(?=[\sx×@]|$))?(?:\s*[x×]\s*(\d+(?:[.,]\d+)?(?:\s*-\s*\d+(?:[.,]\d+)?)*)\s*(kg\b|"|s\b|seg\b)?)?/i))) {
+    item.sets = Number(m[1]); item.reps = Number(m[2]); if (m[3]) item.perSide = true;
+    if (m[4]) {
+      const lst = listOf(m[4]);
+      if (m[5] && /^("|s|seg)$/i.test(m[5])) { if (item.holdSec == null) item.holdSec = lst[0]; }
+      else item.x3 = lst; // peso(s) o saltos por repetición: se decide según el tipo
+    }
   }
+  else if ((m = r.match(/^\s*(\d+(?:[.,]\d+)?)\s*(?:'|min\b)/i))) { item.sets = 1; item.durationSec = Number(m[1].replace(',', '.')) * 60; }
+  if ((m = r.match(/(\d+)\s*(tiros|lanzamientos|saltos|rebotes|contactos|reps?)\b/i)) && !(item.sets && item.reps && item.x3)) item.qty = Number(m[1]);
+
+  // con @: progresión por serie (@35-37,5-40 kg), peso (@18 kg) o tiempo (@6”)
+  const pm = r.match(/@\s*(\d+(?:[.,]\d+)?(?:\s*-\s*\d+(?:[.,]\d+)?)+)\s*(kg)?/i);
+  if (pm) { item.kgList = listOf(pm[1]); item.kg = mean(item.kgList); item.x3 = null; return item; }
   if ((m = r.match(/@\s*(\d+(?:[.,]\d+)?)\s*(kg|"|s\b|seg)?/i))) {
     const v = Number(m[1].replace(',', '.'));
     const isTime = m[2] && /^("|s|seg)$/i.test(m[2]);
     if (isTime) { if (item.holdSec == null) item.holdSec = v; }
-    else item.kg = v; // "@18 kg" o "@18" sin unidad = kg
+    else item.kg = v;
   }
   return item;
+}
+
+// El tercer número de "4x6x60" es peso (gym, lanzamientos) o saltos por repetición (saltos).
+export function resolveX3(item) {
+  if (item.x3Applied === 'kg') { item.kg = null; item.kgList = null; }
+  if (item.x3Applied === 'jumps') item.jumpsPerRep = null;
+  item.x3Applied = null;
+  if (!item.x3 || !item.x3.length) return item;
+  if (item.type === 'jump') { item.jumpsPerRep = item.x3[0]; item.x3Applied = 'jumps'; }
+  else if (item.kg == null && !item.kgList) {
+    if (item.x3.length > 1) { item.kgList = item.x3.slice(); item.kg = mean(item.x3); } else item.kg = item.x3[0];
+    item.x3Applied = 'kg';
+  }
+  return item;
+}
+
+// Cantidad planificada (tiros, saltos o repeticiones totales).
+export function planCount(it) {
+  if (it.qty) return it.qty;
+  if (it.sets && it.reps) return it.sets * it.reps * (it.type === 'jump' && it.jumpsPerRep ? it.jumpsPerRep : 1);
+  return it.sets || 0;
+}
+
+// Tiros por peso de implemento (con pesos distintos por serie).
+export function throwsByKg(it) {
+  const out = {};
+  if (it.kgList && it.sets && it.reps) {
+    for (let i = 0; i < it.sets; i++) { const k = String(it.kgList[Math.min(i, it.kgList.length - 1)]); out[k] = (out[k] || 0) + it.reps; }
+    return out;
+  }
+  out[it.kg != null ? String(it.kg) : 's/p'] = planCount(it);
+  return out;
 }
 
 // ---------- tipo ----------
@@ -210,8 +257,8 @@ export function metricsOf(item) {
   const out = { tonnage: 0, throws: 0, contacts: 0, meters: 0 };
   const count = item.sets && item.reps ? item.sets * item.reps : (item.qty || (item.sets || 0));
   if (item.type === 'gym' && item.kg) out.tonnage = count * item.kg / 1000;
-  if (item.type === 'throw') out.throws = item.qty || count;
-  if (item.type === 'jump') out.contacts = item.qty || count;
+  if (item.type === 'throw') out.throws = planCount(item);
+  if (item.type === 'jump') out.contacts = planCount(item);
   if (item.type === 'run' && item.run) out.meters = item.run.series * item.run.reps * item.run.meters;
   return out;
 }
@@ -230,11 +277,13 @@ export function planText(item) {
   }
   const parts = [];
   if (item.durationSec != null) parts.push((item.sets > 1 ? item.sets + ' × ' : '') + Math.round(item.durationSec / 60) + ' min');
-  else if (item.sets && item.reps) parts.push(item.sets + ' × ' + item.reps + (item.perSide ? 'e' : ''));
+  else if (item.sets && item.reps) parts.push(item.sets + ' × ' + item.reps + (item.perSide ? 'e' : '') + (item.type === 'jump' && item.jumpsPerRep ? ' × ' + item.jumpsPerRep + ' saltos' : ''));
   else if (item.qty) parts.push(item.qty + (item.type === 'throw' ? ' tiros' : item.type === 'jump' ? ' saltos' : ''));
   if (item.holdSec != null && item.type === 'iso') parts.push(item.holdSec + '"');
   if (item.kgList) parts.push(item.kgList.map((v) => String(v).replace('.', ',')).join('-') + ' kg');
   else if (item.kg != null) parts.push(String(item.kg).replace('.', ',') + ' kg');
+  if (item.restRep != null) parts.push('r ' + short(item.restRep));
+  if (item.restSet != null) parts.push('R ' + short(item.restSet));
   return parts.join(' · ');
 }
 
@@ -326,6 +375,7 @@ export function parsePlan(text, opts = {}) {
     const t = guessType(item, library);
     item.type = t.type;
     item.typeGuessed = t.guessed;
+    resolveX3(item);
     item.raw = line;
     item.plan = planText(item);
     item.metrics = metricsOf(item);

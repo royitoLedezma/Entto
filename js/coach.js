@@ -5,7 +5,7 @@ import {
   auth, A, F, P, ADMIN, AppMod, firebaseConfig, getDoc, getDocs, setDoc, deleteDoc, writeBatch, fs,
   rangeDocs, mondayOf, weekDates, addDays, ymd, parseYmd, DAY_LONG, DAY_SHORT, niceDate, randomToken, norm
 } from './db.js';
-import { parsePlan, planText, metricsOf } from './parser.js';
+import { parsePlan, planText, metricsOf, resolveX3 } from './parser.js';
 import { assignIds, groupItems, modSummary, dayMetrics, detailRows, intensityText, testKey, TYPES, GROUPS } from './model.js';
 import { dayStats, buildSeries, wellnessAlert, modsSummary, bestMarks, testSeries, METRICS } from './stats.js';
 import { barChart, stackChart, lineChart, legend, BLUE, GHOST, SEQ } from './charts.js';
@@ -18,40 +18,29 @@ const EXAMPLE = [
   'Nombre del atleta',
   'Calentamiento',
   'Movilidad → 1x10\'',
-  'Rebotes → 3x20',
   'Principal',
-  'Arranque → 3x3 @35-37,5-40 kg',
-  'Sentadilla → 4x6 @60 kg',
-  'A Press banca → 3x8 @40 kg',
+  'Sentadilla → 4x6x60',
+  'Arranque → 3x3x15-18-20',
+  'A Press banca → 3x8x40',
   'A Remo en anillas → 3x8',
-  'Pallof → 3x3 @6”',
-  'Subida cajón → 3x4e @20 kg',
-  'Bala → 6 tiros @4 kg marca',
-  'Triple desde parado → 6 saltos marca',
-  '6x30 a full',
+  'Pallof → 3x3x6”',
   '4x2x200 ritmo 35\'\' r30\'\' R1\'',
   '3x1000 a 4min/km r2\'',
-  '600 a 1:30 [2 a 28.5 · 4 a 59]',
+  'Bala → 3x6x4 r30\'\' R2\'',
+  'Vallas → 3x4x5 r1\' R3\'',
   'Vuelta a la calma',
   'Trote suave → 1x10\'',
   '💡 Prioridad: objetivo de la sesión'
 ].join('\n');
 const GUIDE = [
-  ['Atleta (y día, si quieres)', 'Nombre del atleta · LUNES'],
-  ['Levantamiento olímpico con progresión', 'Arranque → 3x3 @35-37,5-40 kg'],
-  ['Sentadilla / gym', 'Sentadilla → 4x6 @60 kg'],
-  ['Peso corporal', 'Remo en anillas → 3x8'],
-  ['Circuito (misma letra)', 'A Press banca → 3x8 @40 kg'],
-  ['Por lado', 'Subida cajón → 3x4e @20 kg'],
-  ['Isométrico', 'Pallof → 3x3 @6”  ·  Cuádriceps 45” → 3x1 @20 kg'],
-  ['Saltos', 'Rebotes → 3x20'],
-  ['Lanzamiento con marca', 'Bala → 6 tiros @4 kg marca'],
-  ['Velocidad a full', '6x30 a full'],
-  ['Pista con series', "4x2x200 ritmo 35'' r30'' R1'"],
-  ['Carrera larga', "3x1000 a 4min/km r2'  ·  3x1000 a 19km/h"],
-  ['Parciales propios', '600 a 1:30 [2 a 28.5 · 4 a 59]'],
-  ['Por tiempo', "Trote suave → 1x10'"],
-  ['Objetivo del día', '💡 Prioridad: …']
+  ['Atleta', 'Nombre del atleta (una línea)', 'Jhon'],
+  ['Gym', 'Ejercicio → series x repeticiones x peso (o pesos por serie separados por -)', 'Sentadilla → 4x6x60 · Arranque → 3x3x15-18-20'],
+  ['Isométricos', 'Ejercicio → series x repeticiones x tiempo”', 'Pallof → 3x3x6”'],
+  ['Carreras', "series x repeticiones x distancia ritmo XX'' r micropausa R macropausa", "4x2x200 ritmo 35'' r30'' R1'"],
+  ['Endurance', 'series o repeticiones x distancia a velocidad promedio', '3x1000 a 4min/km · 3x1000 a 19km/h'],
+  ['Lanzamientos', 'Ejercicio → series x repeticiones x peso (o pesos) r micropausa R macropausa', "Bala → 3x6x4 r30'' R2' · Martillo → 3x6x5-4-3"],
+  ['Saltos', 'Ejercicio → series x repeticiones x saltos r micropausa R macropausa', "Vallas → 3x4x5 r1' R3'"],
+  ['Extras', 'circuito: misma letra al inicio · por lado: e · pedir resultado: marca · velocidad: a full · parciales: [2 a … · 4 a …] · por tiempo: 1x10\' · día: LUNES · objetivo: 💡 Prioridad:', 'A Press banca → 3x8x40 · Subida cajón → 3x4ex20 · Bala → 3x6x4 marca · 6x30 a full']
 ];
 
 const C = {
@@ -161,7 +150,7 @@ function convert() {
   draw();
 }
 
-function applyType(it, type) { it.type = type; it.typeGuessed = false; it.plan = planText(it); it.metrics = metricsOf(it); }
+function applyType(it, type) { it.type = type; it.typeGuessed = false; resolveX3(it); it.plan = planText(it); it.metrics = metricsOf(it); }
 
 async function saveParsed(publish) {
   if (!C.parsed) return;
@@ -439,7 +428,8 @@ function planView() {
       <p class="muted small">Pega tu mensaje como lo escribes en WhatsApp. Puede traer varios atletas (nombre en una línea) y días (LUNES, MARTES…). Si no trae días, va al día que elijas abajo.</p>
       <textarea class="big" placeholder=${EXAMPLE} .value=${live(C.text)} @input=${(e) => { C.text = e.target.value; }}></textarea>
       <details class="guide"><summary>Cómo escribir cada tipo de ejercicio</summary>
-        <table class="tbl"><tbody>${GUIDE.map(([a, b]) => html`<tr><td>${a}</td><td><code>${b}</code></td></tr>`)}</tbody></table>
+        <table class="tbl"><thead><tr><th>Qué</th><th>Cómo se escribe</th><th>Ejemplo</th></tr></thead><tbody>${GUIDE.map(([a, b, c]) => html`<tr><td><b>${a}</b></td><td>${b}</td><td><code>${c}</code></td></tr>`)}</tbody></table>
+        <p class="muted small">El peso también se puede escribir con @ (Sentadilla → 4x6 @60 kg). Las dos formas valen.</p>
         <button class="btn-sm" @click=${() => { C.text = EXAMPLE; draw(); }}>Usar el ejemplo como base</button>
       </details>
       <div class="row wrap-row">

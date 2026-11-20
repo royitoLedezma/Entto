@@ -1,4 +1,4 @@
-import { parsePlan, parseTime, clock, evenSplits } from '../js/parser.js';
+import { parsePlan, parseTime, clock, evenSplits, throwsByKg, resolveX3, planText } from '../js/parser.js';
 import assert from 'node:assert/strict';
 
 let ok = 0;
@@ -230,6 +230,31 @@ t('progresión por serie y reps por lado', () => {
   assert.deepEqual(a.kgList, [35, 37.5, 40]); assert.equal(a.plan, '3 × 3 · 35-37,5-40 kg');
   assert.equal(a.metrics.tonnage, 0.3375);
   assert.equal(b.perSide, true); assert.equal(b.plan, '2 × 3e · 52,5 kg');
+});
+
+t('formato con x: gym, isométrico, lanzamientos y saltos con pausas', () => {
+  const q = parsePlan(`Ana
+Sentadilla → 4x6x60
+Arranque → 3x3x35-37,5-40
+Pallof → 3x3x6”
+Bala → 3x6x4 r30'' R2'
+Martillo → 3x6x5-4-3
+Vallas → 3x4x5 r1' R3'`, { athletes: ['Ana'] });
+  const [sq, ar, pa, ba, ma, va] = q.athletes[0].days[0].blocks[0].items;
+  assert.equal(sq.kg, 60); assert.equal(sq.plan, '4 × 6 · 60 kg'); assert.equal(sq.metrics.tonnage, 1.44);
+  assert.deepEqual(ar.kgList, [35, 37.5, 40]);
+  assert.equal(pa.type, 'iso'); assert.equal(pa.holdSec, 6);
+  assert.equal(ba.type, 'throw'); assert.equal(ba.kg, 4); assert.equal(ba.metrics.throws, 18); assert.equal(ba.restRep, 30); assert.equal(ba.restSet, 120);
+  assert.equal(ba.plan, "3 × 6 · 4 kg · r 30'' · R 2'");
+  assert.deepEqual(throwsByKg(ma), { 5: 6, 4: 6, 3: 6 });
+  assert.equal(va.type, 'jump'); assert.equal(va.jumpsPerRep, 5); assert.equal(va.metrics.contacts, 60);
+  assert.equal(va.plan, "3 × 4 × 5 saltos · r 1' · R 3'");
+  va.type = 'gym'; resolveX3(va); assert.equal(va.kg, 5); assert.equal(va.jumpsPerRep, null);
+  va.type = 'jump'; resolveX3(va); assert.equal(va.jumpsPerRep, 5); assert.equal(va.kg, null);
+  assert.equal(q.warnings.filter((w) => !w.kind).length, 0);
+  const e = parsePlan('X\nSubida cajón → 3x4ex20\nBala → 3x6x4 marca', { athletes: ['X'] }).athletes[0].days[0].blocks[0].items;
+  assert.equal(e[0].perSide, true); assert.equal(e[0].kg, 20); assert.equal(e[0].plan, '3 × 4e · 20 kg');
+  assert.equal(e[1].kg, 4); assert.equal(e[1].marca, true);
 });
 
 console.log(`\n${ok} pruebas pasaron`);

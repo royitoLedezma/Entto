@@ -3,7 +3,7 @@ import { html, render, nothing } from './vendor/lit-html/lit-html.js';
 import { live } from './vendor/lit-html/directives/live.js';
 import { auth, A, P, F, getDoc, getDocs, setDoc, getMany, mondayOf, weekDates, addDays, ymd, parseYmd, DAY_LONG, DAY_SHORT, niceDate } from './db.js';
 import { assignIds, groupItems, fmtTyped, secsOf, plannedSets, modSummary, intensityText, totalReps, testKey } from './model.js';
-import { clock } from './parser.js';
+import { clock, planCount } from './parser.js';
 
 const LABELS = ['Muy mal', 'Mal', 'Normal', 'Bien', 'Muy bien'];
 const TAGS = { gym: 'GYM', run: 'CARRERA', iso: 'ISOMÉTRICO', throw: 'LANZAMIENTO', jump: 'SALTO', note: 'NOTA' };
@@ -92,8 +92,8 @@ function markMod(it, id) {
     patch.ex = ex;
   } else if (it.type === 'gym' || it.type === 'iso') { if (!e.sets) patch.sets = plannedSets(it); }
   else if (it.type === 'run') { if (!e.times) patch.times = Array.from({ length: totalReps(it) }, () => ''); }
-  else if (it.type === 'throw') { if (e.qty == null) patch.qty = String(it.qty || (it.sets && it.reps ? it.sets * it.reps : it.sets || '')); if (e.impl == null) patch.impl = it.kg != null ? String(it.kg).replace('.', ',') + ' kg' : ''; }
-  else if (it.type === 'jump') { if (e.qty == null) patch.qty = String(it.qty || (it.sets && it.reps ? it.sets * it.reps : it.sets || '')); }
+  else if (it.type === 'throw') { if (e.qty == null) patch.qty = String(planCount(it) || ''); if (e.impl == null) patch.impl = it.kgList ? it.kgList.map((v) => String(v).replace('.', ',')).join('-') + ' kg' : it.kg != null ? String(it.kg).replace('.', ',') + ' kg' : ''; }
+  else if (it.type === 'jump') { if (e.qty == null) patch.qty = String(planCount(it) || ''); }
   S.open[id] = true;
   setEntry(id, patch);
 }

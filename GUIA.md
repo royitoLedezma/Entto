@@ -31,18 +31,15 @@ La app queda en `https://royitoledezma.github.io/entto/`.
 - Si un enlace se filtra: **Enlace nuevo** (el anterior deja de funcionar).
 
 ## Forma de escribir
-| Qué | Ejemplo |
-| --- | --- |
-| Atleta | una línea con su nombre: `Jhon` |
-| Día (opcional) | `LUNES`, `MARTES`… |
-| Bloques | `Calentamiento` / `Activación`, `Principal` (o Potencia, Fuerza…), `Vuelta a la calma` |
-| Gym | `Arranque → 3x6 @18 kg` (sin `@` = peso corporal; acepta `8,5`) |
-| Isométrico | `Pallof → 3x3 @6”` · `Cuádriceps 45” → 3x1 @20 kg` |
-| Por tiempo | `Trote suave → 1x10'` |
-| Circuito | `A HBDL → 4x12 @50 kg` y `A Press de hombro → 4x10 @14 kg` |
-| Pista | `4x2x200 ritmo 35'' r30'' R1'` |
-| Endurance | `3x1000 a 4min/km r2'` · `3x1000 a 19km/h` |
-| Parciales propios | `600 a 1:30 [2 a 28.5 · 4 a 59]` |
-| Velocidad corta | `6x30 a full` (sin tiempo) |
-| Pedir resultado | agregar `marca`: `Bala → 6 tiros @4 kg marca` |
-| Objetivo del día | `💡 Prioridad: …` |
+| Qué | Cómo se escribe | Ejemplo |
+| --- | --- | --- |
+| Atleta | una línea con su nombre | `Jhon` |
+| Gym | Ejercicio → series x repeticiones x peso (o pesos por serie con -) | `Sentadilla → 4x6x60` · `Arranque → 3x3x15-18-20` |
+| Isométricos | Ejercicio → series x repeticiones x tiempo” | `Pallof → 3x3x6”` |
+| Carreras | series x repeticiones x distancia ritmo XX'' r micropausa R macropausa | `4x2x200 ritmo 35'' r30'' R1'` |
+| Endurance | series o repeticiones x distancia a velocidad promedio | `3x1000 a 4min/km` · `3x1000 a 19km/h` |
+| Lanzamientos | Ejercicio → series x repeticiones x peso (o pesos) r R | `Bala → 3x6x4 r30'' R2'` · `Martillo → 3x6x5-4-3` |
+| Saltos | Ejercicio → series x repeticiones x saltos r R | `Vallas → 3x4x5 r1' R3'` |
+| Extras | circuito (misma letra), por lado (e), marca, a full, parciales, por tiempo, día, prioridad | `A Press banca → 3x8x40` · `Subida cajón → 3x4ex20` · `Bala → 3x6x4 marca` · `6x30 a full` · `600 a 1:30 [2 a 28.5 · 4 a 59]` · `Trote → 1x10'` · `LUNES` · `💡 Prioridad: …` |
+
+El peso también se puede escribir con @: `Sentadilla → 4x6 @60 kg`.

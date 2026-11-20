@@ -1,5 +1,6 @@
 // Cálculos de la pantalla Progreso (sin dependencias: se prueba en Node).
 import { groupItems, assignIds } from './model.js';
+import { planCount, throwsByKg } from './parser.js';
 
 const num = (v) => (v == null || v === '' ? null : Number(String(v).replace(',', '.')));
 const z = (n) => String(n).padStart(2, '0');
@@ -39,8 +40,8 @@ export function dayStats(dayIn, log) {
       const count = it.sets && it.reps ? it.sets * it.reps : (it.qty || it.sets || 0);
       // plan
       if (it.type === 'gym' && it.kg) plan.ton += count * it.kg / 1000;
-      if (it.type === 'throw') { const q = it.qty || count; plan.thr += q; const k = it.kg != null ? String(it.kg) : 's/p'; plan.thrByKg[k] = (plan.thrByKg[k] || 0) + q; }
-      if (it.type === 'jump') plan.con += it.qty || count;
+      if (it.type === 'throw') { plan.thr += planCount(it); Object.entries(throwsByKg(it)).forEach(([k, v]) => { plan.thrByKg[k] = (plan.thrByKg[k] || 0) + v; }); }
+      if (it.type === 'jump') plan.con += planCount(it);
       if (it.type === 'run' && it.run) plan.met += it.run.series * it.run.reps * it.run.meters;
       if (!ok) return;
       // hecho
@@ -58,12 +59,14 @@ export function dayStats(dayIn, log) {
         } else if (it.kg) done.ton += count * it.kg / 1000;
       }
       if (it.type === 'throw') {
-        const q = isMod && e.qty ? num(e.qty) : (it.qty || count);
-        const kgv = isMod && e.impl ? num(String(e.impl).replace(/[^0-9.,]/g, '')) : it.kg;
-        done.thr += q; const k = kgv != null ? String(kgv) : 's/p'; done.thrByKg[k] = (done.thrByKg[k] || 0) + q;
-        if (isMod && it.qty && q !== it.qty) mods.push({ name: it.name, dir: q > it.qty ? 'up' : 'down' });
+        if (isMod && (e.qty || e.impl)) {
+          const q = e.qty ? num(e.qty) : planCount(it);
+          const kgv = e.impl ? num(String(e.impl).replace(/[^0-9.,]/g, '')) : it.kg;
+          done.thr += q; const k = kgv != null ? String(kgv) : 's/p'; done.thrByKg[k] = (done.thrByKg[k] || 0) + q;
+          if (q !== planCount(it)) mods.push({ name: it.name, dir: q > planCount(it) ? 'up' : 'down' });
+        } else { done.thr += planCount(it); Object.entries(throwsByKg(it)).forEach(([k, v]) => { done.thrByKg[k] = (done.thrByKg[k] || 0) + v; }); }
       }
-      if (it.type === 'jump') { done.con += isMod && e.qty ? num(e.qty) : (it.qty || count); }
+      if (it.type === 'jump') { done.con += isMod && e.qty ? num(e.qty) : planCount(it); }
       if (it.type === 'run' && it.run) done.met += it.run.series * it.run.reps * it.run.meters;
       if (e && e.mark && num(String(e.mark).replace(/[^0-9.,]/g, '')) != null) marks.push({ name: it.name, value: num(String(e.mark).replace(/[^0-9.,]/g, '')) });
     });
