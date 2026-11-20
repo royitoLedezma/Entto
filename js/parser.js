@@ -14,6 +14,8 @@ const BLOCK_MAP = [
 
 const THROW_RE = /(bala|martillo|disco|jabalina|lanzamiento|bal[oó]n medicinal|multilanzamiento)/i;
 const JUMP_RE = /(salto|rebote|caj[oó]n|valla|pliom|cmj|abalakov|triple|multisalto|skipping|pogo)/i;
+const GYM_FIRST_RE = /(subida|step ?up|sentadilla|peso muerto|press|remo|jal[oó]n)/i;
+const TIME_RE = /(aer[oó]bic|trote|movilidad|estiramiento|flexibilidad|abc|calentar|calentamiento|elongaci[oó]n|rodillo|foam)/i;
 
 // ---------- utilidades de tiempo ----------
 
@@ -189,6 +191,8 @@ function guessType(item, library) {
   if (library && library[key]) return { type: library[key], guessed: false };
   if (item.run) return { type: 'run', guessed: !library };
   if (item.holdSec != null || item.durationSec != null) return { type: 'iso', guessed: true };
+  if (TIME_RE.test(item.name)) return { type: 'iso', guessed: true };
+  if (GYM_FIRST_RE.test(item.name)) return { type: 'gym', guessed: true };
   if (THROW_RE.test(item.name)) return { type: 'throw', guessed: true };
   if (JUMP_RE.test(item.name)) return { type: 'jump', guessed: true };
   return { type: 'gym', guessed: true };
@@ -297,6 +301,11 @@ export function parsePlan(text, opts = {}) {
     } else {
       const am = line.match(/^(.*?)\s*(?:→|->)\s*(.*)$/);
       if (am) item = parseArrow(am[1], am[2]);
+    }
+
+    // En calentamiento y vuelta a la calma, una línea sin números es una tarea para marcar (ej. "ABC de carrera").
+    if (!item && (block.name === 'Calentamiento' || block.name === 'Vuelta a la calma') && !/\d/.test(line) && line.split(' ').length <= 8) {
+      item = { name: line, circuit: null, sets: null, reps: null, kg: null, holdSec: null, qty: null };
     }
 
     if (!item) {

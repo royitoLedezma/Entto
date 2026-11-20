@@ -215,4 +215,13 @@ t("Trote suave → 1x10' = 10 min", () => {
   assert.equal(x.durationSec, 600); assert.equal(x.type, 'iso'); assert.equal(x.plan, '10 min');
 });
 
+t('calentamiento sin números = tarea para marcar', () => {
+  const q = parsePlan('Camila\nCalentamiento\nCalentar\nABC de carrera\nPrincipal\nSubida cajón → 4x4 @25 kg\nEficiencia aeróbica 15-30-45 → 1x1', { athletes: ['Camila'] });
+  const [cal, pri] = q.athletes[0].days[0].blocks;
+  assert.deepEqual(cal.items.map((i) => [i.type, i.name]), [['iso', 'Calentar'], ['iso', 'ABC de carrera']]);
+  assert.equal(pri.items[0].type, 'gym');
+  assert.equal(pri.items[1].type, 'iso');
+  assert.equal(q.warnings.filter((w) => !w.kind).length, 0);
+});
+
 console.log(`\n${ok} pruebas pasaron`);
