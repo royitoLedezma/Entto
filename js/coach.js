@@ -7,6 +7,8 @@ import {
 } from './db.js';
 import { parsePlan, planText, metricsOf } from './parser.js';
 import { assignIds, groupItems, modSummary, dayMetrics, detailRows, intensityText, testKey, TYPES, GROUPS } from './model.js';
+import { dayStats, buildSeries, wellnessAlert, modsSummary, bestMarks, testSeries, METRICS } from './stats.js';
+import { barChart, stackChart, lineChart, legend, BLUE, GHOST, SEQ } from './charts.js';
 
 const TAGS = { gym: 'Gym', run: 'Carrera', iso: 'Isom.', throw: 'Lanz.', jump: 'Salto', note: 'Nota' };
 const ST = { hecho: '✓ Hecho', mod: '✎ Modificado', no: '✕ No lo hizo' };
@@ -19,6 +21,7 @@ const C = {
   gridAid: null, grid: {}, editing: null, editText: '',
   // revisar
   ra: null, rm: mondayOf(new Date()), rDays: {}, rLogs: {}, rTests: {}, newTest: { name: '', unit: 'kg' }, newRes: {},
+  rtab: 'revisar', prog: null, pv: 'semana', pmode: 'rel', poff: 0, psel: {}, ploading: false,
   // excel
   exFrom: ymd(addDays(mondayOf(new Date()), -49)), exTo: ymd(addDays(mondayOf(new Date()), 6)),
   // admin
@@ -204,7 +207,7 @@ async function publishWeek() {
 
 // ---------- revisar ----------
 async function openReview(aid) {
-  C.ra = aid; C.tab = 'revisar'; draw();
+  C.ra = aid; C.tab = 'revisar'; C.rtab = 'revisar'; C.prog = null; draw();
   await loadReview(); draw();
 }
 async function loadReview() {
@@ -468,9 +471,12 @@ function reviewView() {
   const a = C.athletes.find((x) => x.id === C.ra);
   if (!a) return html`<p>Elige un atleta.</p>`;
   const dates = weekDates(C.rm);
-  return html`
+  const head = html`
     <button class="link" @click=${() => { C.tab = 'atletas'; draw(); }}>‹ Atletas</button>
     <h2 class="big">${a.name} <span class="muted small">${a.group || ''}</span></h2>
+    <div class="seg2 narrowseg">${[['revisar', 'Revisar'], ['progreso', 'Progreso']].map(([k, l]) => html`<button class=${C.rtab === k ? 'on' : ''} @click=${() => { C.rtab = k; if (k === 'progreso' && !C.prog) loadProgress(); draw(); }}>${l}</button>`)}</div>`;
+  if (C.rtab === 'progreso') return html`${head}${progressView()}`;
+  return html`${head}
     <div class="weeknav"><button class="icon" aria-label="Semana anterior" @click=${() => setRm(-1)}>‹</button><h2>Semana del ${niceDate(dates[0])}</h2><button class="icon" aria-label="Semana siguiente" @click=${() => setRm(1)}>›</button></div>
     <div class="review">${dates.map((d, i) => {
       const day = C.rDays[d]; if (!day) return nothing;
@@ -528,4 +534,121 @@ function adminView() {
     <table class="tbl"><thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th></tr></thead><tbody>
       ${C.users.map((u) => html`<tr><td>${u.name}</td><td>${u.email}</td><td>${u.role === 'admin' ? 'Administrador' : 'Entrenador'}</td></tr>`)}
     </tbody></table></div>`;
+}
+
+
+// ---------- progreso ----------
+async function loadProgress(years = 1) {
+  C.ploading = true; draw();
+  const today = new Date();
+  const from = years > 1 ? (today.getFullYear() - 4) + '-01-01' : ymd(addDays(today, -400));
+  const to = ymd(addDays(today, 14));
+  const [days, logs, ts] = await Promise.all([rangeDocs(P.days(uid(), C.ra), from, to), rangeDocs(P.logs(uid(), C.ra), from, to), getDocs(P.tests(uid(), C.ra))]);
+  const daily = {};
+  Object.keys(days).forEach((d) => { try { daily[d] = dayStats(days[d], logs[d]); } catch (e) { console.error(d, e); } });
+  const tests = {}; ts.forEach((x) => { tests[x.id] = x.data(); });
+  C.prog = { aid: C.ra, daily, tests, years, from };
+  C.ploading = false; draw();
+}
+
+const f1 = (v) => (v == null ? '—' : (Math.round(v * 10) / 10).toString().replace('.', ','));
+const f0 = (v) => (v == null ? '—' : Math.round(v).toLocaleString('es'));
+const fpct = (v) => Math.round(v) + ' %';
+const funit = (k) => (k === 'ton' ? (v) => f1(v) + ' t' : k === 'met' ? (v) => f0(v) + ' m' : (v) => f0(v));
+const PV_LABEL = { dia: 'día típico', semana: 'semana típica', mes: 'mes típico', anio: 'temporada base' };
+const PV_CAP = {
+  dia: 'Día por día. 100 % = su día de entrenamiento típico (promedio de las últimas 4 semanas).',
+  semana: 'Últimas 12 semanas. 100 % = su semana típica (promedio de las 4 anteriores).',
+  mes: 'Últimos 12 meses. 100 % = su mes típico (promedio de los 3 anteriores).',
+  anio: 'Año contra año. 100 % = su primer año registrado.'
+};
+
+function pick(key) { return (i) => { if (C.psel[key] !== i) { C.psel = Object.assign({}, C.psel, { [key]: i }); draw(); } }; }
+
+function progressView() {
+  if (!C.prog || C.ploading) return html`<p class="muted">Calculando el progreso…</p>`;
+  const { daily, tests } = C.prog;
+  const today = new Date();
+  const ser = buildSeries(daily, C.pv, today, C.poff);
+  const labels = ser.map((p) => p.label);
+  const cur = C.pv === 'dia' ? ser.reduce((acc, p) => { ['ton', 'thr', 'con', 'met'].forEach((k) => { acc.done[k] += p.done[k]; }); acc.items += p.items; acc.doneItems += p.doneItems; acc.hours = acc.hours.concat(p.hours); acc.mods = acc.mods.concat(p.mods); return acc; }, { done: { ton: 0, thr: 0, con: 0, met: 0 }, items: 0, doneItems: 0, hours: [], mods: [] })
+    : ser.slice().reverse().find((p) => p.sessions > 0) || ser[ser.length - 1];
+  const has = (k) => ser.some((p) => p.plan[k] > 0 || p.done[k] > 0);
+  const anyRel = ser.some((p) => p.relDone != null || p.relPlan != null);
+  const up = cur.mods.filter((m) => m.dir === 'up').length, down = cur.mods.filter((m) => m.dir === 'down').length;
+  const hAvg = cur.hours.length ? cur.hours.reduce((a, b) => a + b, 0) / cur.hours.length : null;
+  const kpis = [['% cumplido', cur.items ? Math.round(cur.doneItems / cur.items * 100) + ' %' : '—']];
+  if (has('ton')) kpis.push(['Toneladas', f1(cur.done.ton) + ' t']);
+  if (has('thr')) kpis.push(['Tiros', f0(cur.done.thr)]);
+  if (has('con')) kpis.push(['Contactos', f0(cur.done.con)]);
+  if (has('met')) kpis.push(['Metros', f0(cur.done.met)]);
+  kpis.push(['Horas de sueño', hAvg != null ? f1(hAvg) + ' h' : '—']);
+  kpis.push(['Cambios', '↑ ' + up + '  ↓ ' + down]);
+  const alert = wellnessAlert(daily, today);
+  const s = (k) => C.psel[k];
+  const detailRel = s('rel') != null ? (() => { const p = ser[s('rel')]; return p.label + ': planificado ' + (p.relPlan != null ? fpct(p.relPlan) : '—') + ' · hecho ' + (p.relDone != null ? fpct(p.relDone) : '—') + ' de su ' + PV_LABEL[C.pv] + (p.items ? ' · cumplido ' + p.pct + ' %' : ''); })() : 'Toca una barra para ver el detalle.';
+  const kgKeys = [...new Set(ser.flatMap((p) => Object.keys(p.done.thrByKg)))].sort((a, b) => parseFloat(a) - parseFloat(b)).slice(0, 5);
+  const win = { from: ser[0].from, to: ser[ser.length - 1].to };
+  const mods = modsSummary(daily, win.from, win.to);
+  const marks = bestMarks(daily, '0000', '9999');
+  const testList = Object.values(tests).map((t) => ({ t, pts: testSeries(t) })).filter((x) => x.pts.length);
+  const hoursAll = Object.values(daily).filter((d) => d.wellness).map((d) => d.wellness.hours);
+  const hoursRef = hoursAll.length ? hoursAll.slice(-28).reduce((a, b) => a + b, 0) / Math.min(28, hoursAll.length) : null;
+
+  return html`
+    <div class="card">
+      <div class="row wrap-row between">
+        <div class="seg2">${[['dia', 'Día'], ['semana', 'Semana'], ['mes', 'Mes'], ['anio', 'Año']].map(([k, l]) => html`<button class=${C.pv === k ? 'on' : ''} @click=${async () => { C.pv = k; C.poff = 0; C.psel = {}; if (k === 'anio' && C.prog.years < 5) await loadProgress(5); draw(); }}>${l}</button>`)}</div>
+        <div class="seg2">${[['rel', 'Relativo a su típico'], ['real', 'Unidades reales']].map(([k, l]) => html`<button class=${C.pmode === k ? 'on' : ''} @click=${() => { C.pmode = k; draw(); }}>${l}</button>`)}</div>
+      </div>
+      ${C.pv === 'dia' || C.pv === 'semana' ? html`<div class="weeknav"><button class="icon" aria-label="Anterior" @click=${() => { C.poff--; C.psel = {}; draw(); }}>‹</button><span class="muted small">${ser[0].label} → ${ser[ser.length - 1].label}</span><button class="icon" aria-label="Siguiente" @click=${() => { if (C.poff < 0) { C.poff++; C.psel = {}; draw(); } }}>›</button></div>` : nothing}
+      <div class="kpis">${kpis.map(([l, v]) => html`<div class="kpi"><span class="kpi-l">${l}</span><span class="kpi-v">${v}</span></div>`)}</div>
+      <p class="muted small">${C.pv === 'dia' ? 'Cifras de la semana mostrada.' : 'Cifras del último período con entrenamiento (' + cur.label + ').'}</p>
+    </div>
+
+    ${alert ? html`<div class="warn"><b>Bienestar bajo 2 días seguidos</b><span>${alert.text}</span></div>` : nothing}
+
+    ${C.pmode === 'rel' ? html`<div class="card">
+      <h2>Carga</h2><p class="muted small">${PV_CAP[C.pv]}</p>
+      ${legend([[GHOST, 'Planificado'], [BLUE, 'Hecho'], ['', 'Referencia 100 %', true]])}
+      ${anyRel ? barChart({ labels, ghost: ser.map((p) => p.relPlan), values: ser.map((p) => p.relDone), ref: 100, fmt: fpct, onPick: pick('rel'), sel: s('rel'), label: 'Carga relativa a su típico' })
+        : html`<p class="muted">La referencia se arma con algunas semanas de datos. Mientras tanto, mira “Unidades reales”.</p>`}
+      <div class="detail-line">${detailRel}</div>
+    </div>` : html`<div class="grid2">${METRICS.filter((m) => has(m.key)).map((m) => html`<div class="card">
+      <h2>${m.name}</h2>${legend([[GHOST, 'Planificado'], [BLUE, 'Hecho']])}
+      ${barChart({ labels, ghost: ser.map((p) => p.plan[m.key]), values: ser.map((p) => p.done[m.key]), fmt: funit(m.key), onPick: pick(m.key), sel: s(m.key), label: m.name })}
+      <div class="detail-line">${s(m.key) != null ? labels[s(m.key)] + ': planificado ' + funit(m.key)(ser[s(m.key)].plan[m.key]) + ' · hecho ' + funit(m.key)(ser[s(m.key)].done[m.key]) : 'Toca una barra.'}</div>
+    </div>`)}${!['ton', 'thr', 'con', 'met'].some(has) ? html`<div class="card"><p class="muted">Todavía no hay entrenamientos en este período.</p></div>` : nothing}</div>`}
+
+    ${has('thr') && kgKeys.length ? html`<div class="card">
+      <h2>Tiros por peso de implemento</h2>
+      ${legend(kgKeys.map((k, i) => [SEQ[i % SEQ.length], k === 's/p' ? 'sin peso' : k.replace('.', ',') + ' kg']))}
+      ${stackChart({ labels, stacks: kgKeys.map((k) => ({ name: k, values: ser.map((p) => p.done.thrByKg[k] || 0) })), fmt: f0, onPick: pick('kg'), sel: s('kg'), label: 'Tiros por peso de implemento' })}
+      <div class="detail-line">${s('kg') != null ? labels[s('kg')] + ': ' + kgKeys.map((k) => (k === 's/p' ? 'sin peso' : k.replace('.', ',') + ' kg') + ' ' + (ser[s('kg')].done.thrByKg[k] || 0)).join(' · ') : 'Toca una barra.'}</div>
+    </div>` : nothing}
+
+    <div class="grid2">
+      <div class="card">
+        <h2>Horas de sueño</h2>${legend([[BLUE, 'Horas (promedio del período)'], ['', 'Su normal' + (hoursRef ? ' (' + f1(hoursRef) + ' h)' : ''), true]])}
+        ${ser.some((p) => p.hoursAvg != null) ? lineChart({ labels, values: ser.map((p) => p.hoursAvg), ref: hoursRef, min: 4, max: 10, fmt: (v) => f1(v) + ' h', onPick: pick('sl'), sel: s('sl'), label: 'Horas de sueño' }) : html`<p class="muted">Aún no hay respuestas de bienestar.</p>`}
+        <div class="detail-line">${s('sl') != null && ser[s('sl')].hoursAvg != null ? labels[s('sl')] + ': ' + f1(ser[s('sl')].hoursAvg) + ' h · sueño ' + f1(ser[s('sl')].sleepAvg) + '/5 · se siente ' + f1(ser[s('sl')].feelAvg) + '/5' : 'Toca un punto.'}</div>
+      </div>
+      <div class="card">
+        <h2>Qué modifica</h2>
+        <p class="muted small">En el período visible. Si sube seguido, el plan quedó corto; si baja seguido, quedó largo.</p>
+        <span class="tag">SUBE PESO, REPS O SERIES</span>
+        ${mods.up.length ? html`<ul>${mods.up.map(([n, c]) => html`<li class="it"><span class="it-name grow">${n}</span><span class="rv-ok">${c} ${c === 1 ? 'vez' : 'veces'}</span></li>`)}</ul>` : html`<p class="muted small">Nada.</p>`}
+        <span class="tag">BAJA O NO COMPLETA</span>
+        ${mods.down.length ? html`<ul>${mods.down.map(([n, c]) => html`<li class="it"><span class="it-name grow">${n}</span><span class="rv-mod">${c} ${c === 1 ? 'vez' : 'veces'}</span></li>`)}</ul>` : html`<p class="muted small">Nada.</p>`}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Tests y mejoras</h2>
+      ${testList.length ? html`<div class="grid2">${testList.map(({ t, pts }) => html`<div>
+        <div class="row between"><b>${t.name}</b><span class="small">${t.initial ? 'Inicial ' + f1(t.initial.value) + ' ' + t.unit : ''}${t.current ? ' → actual ' + f1(t.current.value) + ' ' + t.unit : ''}${t.initial && t.current && t.initial.value ? html` <b class=${(t.unit === 's' ? t.current.value <= t.initial.value : t.current.value >= t.initial.value) ? 'rv-ok' : 'rv-mod'}>(${(t.current.value - t.initial.value > 0 ? '+' : '') + f1(t.current.value - t.initial.value)} ${t.unit})</b>` : ''}</span></div>
+        ${pts.length > 1 ? lineChart({ labels: pts.map((p) => niceDate(p.date)), values: pts.map((p) => p.value), fmt: (v) => f1(v), label: 'Progreso de ' + t.name }) : html`<p class="muted small">Un solo resultado por ahora.</p>`}
+      </div>`)}</div>` : html`<p class="muted small">Sin tests cargados. Se cargan en Revisar → Tests.</p>`}
+      ${marks.length ? html`<span class="tag">MEJORES MARCAS ANOTADAS</span><ul>${marks.map((m) => html`<li class="it"><span class="it-name grow">${m.name}</span><span>${f1(m.value)}</span><span class="muted small">${niceDate(m.date)}</span>${m.delta ? html`<span class="rv-ok">+${f1(m.delta)}</span>` : nothing}</li>`)}</ul>` : nothing}
+    </div>`;
 }
