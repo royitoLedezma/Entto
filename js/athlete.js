@@ -97,8 +97,12 @@ function markMod(it, id) {
   S.open[id] = true;
   setEntry(id, patch);
 }
-function allDone(block) {
-  const groups = groupItems(block.items).filter((g) => !(g.kind === 'single' && g.item.type === 'note'));
+function dayGroups() {
+  const day = S.days[S.dayIdx];
+  return day ? day.blocks.flatMap((b) => groupItems(b.items)) : [];
+}
+function allDone() {
+  const groups = dayGroups().filter((g) => !(g.kind === 'single' && g.item.type === 'note'));
   const all = groups.every((g) => (entry(g.id) || {}).status === 'hecho');
   groups.forEach((g) => {
     const e = entry(g.id) || {};
@@ -177,6 +181,7 @@ function dayView(day) {
       <button class=${canStart ? 'btn-start' : 'btn-start off'} @click=${() => canStart && setWell({ done: true })}>${canStart ? 'Listo, a entrenar' : 'Responde las dos preguntas'}</button>
     </div>` : html`<div class="wbsum"><span>Dormiste ${LABELS[w.sleep - 1].toLowerCase()} (${String(w.hours).replace('.', ',')} h) · Te sientes ${LABELS[w.feel - 1].toLowerCase()}</span><button class="link" @click=${() => setWell({ done: false })}>Cambiar</button></div>`}
     ${day.prio ? html`<div class="prio"><b>Prioridad:</b> ${day.prio}</div>` : nothing}
+    ${(() => { const gs = dayGroups().filter((g) => !(g.kind === 'single' && g.item.type === 'note')); const all = gs.length && gs.every((g) => (entry(g.id) || {}).status === 'hecho'); return gs.length ? html`<button class="ball big ${all ? 'on' : ''}" @click=${allDone}>${all ? '✓ Todo hecho' : 'Todo hecho (marcar toda la sesión)'}</button>` : nothing; })()}
     ${day.blocks.map((b) => blockView(b))}
     <div class="card">
       <label class="q" for="coment">Comentario para tu entrenador (opcional)</label>
@@ -190,11 +195,7 @@ function dayView(day) {
 
 function blockView(b) {
   const groups = groupItems(b.items);
-  const quick = b.name === 'Calentamiento' || b.name === 'Vuelta a la calma';
-  const counted = groups.filter((g) => !(g.kind === 'single' && g.item.type === 'note'));
-  const all = counted.length && counted.every((g) => (entry(g.id) || {}).status === 'hecho');
-  return html`<div class="bhd"><span class="bname">${b.name}</span>
-      ${quick && counted.length ? html`<button class="ball ${all ? 'on' : ''}" @click=${() => allDone(b)}>${all ? '✓ Todo hecho' : 'Todo hecho'}</button>` : nothing}</div>
+  return html`<div class="bhd"><span class="bname">${b.name}</span></div>
     ${groups.map((g) => (g.kind === 'circuit' ? circuitCard(g) : itemCard(g.item)))}`;
 }
 
