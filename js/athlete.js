@@ -41,7 +41,8 @@ export async function startAthlete(root, token) {
     await loadWeek();
   } catch (e) {
     console.error(e);
-    S.error = navigator.onLine ? 'No pudimos abrir tu enlace. Revisa que esté completo o pide uno nuevo.' : 'Para la primera vez necesitas internet. Después funciona sin conexión.';
+    S.error = e && e.code === 'auth/operation-not-allowed' ? 'Tu entrenador debe activar el acceso de atletas (Firebase: Authentication → Anónimo).'
+      : navigator.onLine ? 'No pudimos abrir tu enlace. Revisa que esté completo o pide uno nuevo.' : 'Para la primera vez necesitas internet. Después funciona sin conexión.';
   }
   S.loading = false; draw();
 }

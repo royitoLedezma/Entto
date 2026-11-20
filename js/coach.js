@@ -56,7 +56,9 @@ async function login(email, pass) {
   } catch (e) {
     C.loginErr = e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found' ? 'Correo o contraseña incorrectos.'
       : e.code === 'auth/email-already-in-use' ? 'Ese correo ya tiene cuenta: usa Entrar.'
-      : e.code === 'auth/weak-password' ? 'La contraseña debe tener al menos 6 caracteres.' : 'No se pudo entrar (' + e.code + ').';
+      : e.code === 'auth/weak-password' ? 'La contraseña debe tener al menos 6 caracteres.'
+      : e.code === 'auth/operation-not-allowed' ? 'Falta activar en Firebase: Authentication → Método de acceso → Correo electrónico/contraseña.'
+      : 'No se pudo entrar (' + e.code + ').';
   }
   C.busy = false; draw();
 }
